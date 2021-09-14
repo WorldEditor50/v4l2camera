@@ -5,30 +5,6 @@ V4l2Device::~V4l2Device()
     clear();
 }
 
-QImage V4l2Device::convertToQImage(const cv::Mat &src)
-{
-    QImage img;
-    int channel = src.channels();
-    switch (channel) {
-    case 3:
-        img = QImage(src.data, src.cols, src.rows, QImage::Format_RGB888);
-        break;
-    case 4:
-        img = QImage(src.data, src.cols, src.rows, QImage::Format_ARGB32);
-        break;
-    default:
-        img = QImage(src.cols, src.rows, QImage::Format_Indexed8);
-        uchar *data = src.data;
-        for(int i = 0; i < src.rows ; i++){
-            uchar* rowdata = img.scanLine( i );
-            memcpy(rowdata, data , src.cols);
-            data += src.cols;
-        }
-        break;
-    }
-    return img;
-}
-
 void V4l2Device::process(int index, int size_)
 {
     if (state == SAMPLE_PAUSE) {
@@ -57,24 +33,7 @@ void V4l2Device::process(int index, int size_)
         qDebug()<<"decode failed."<<" format: "<<formatString;
     }
     /* process */
-#if 0
-    /* laplace  */
-    cv::Mat src(height, width, CV_8UC4, data);
-    cv::cvtColor(src, src, cv::COLOR_RGBA2GRAY);
-    cv::blur(src, src, cv::Size(3, 3));
-    cv::Canny(src, src, 60, 150);
-    cv::Mat gaussBlurImg;
-    cv::GaussianBlur(src, gaussBlurImg, cv::Size(3, 3), 0);
-    cv::Mat gray;
-    cv::cvtColor(gaussBlurImg, gray, cv::COLOR_RGBA2GRAY);
-    cv::Mat filterImg;
-    cv::Laplacian(gray, filterImg, CV_16S, 3);
-    cv::Mat dst;
-    cv::convertScaleAbs(filterImg, dst);
-    /* send */
-    emit send(convertToQImage(dst));
-#endif
-    emit send(QImage(data, width, height, QImage::Format_ARGB32));
+    emit send(Imageprocess::invoke(width, height, data));
     ImageDataPool::recycle(len, data);
     return;
 }

@@ -24,6 +24,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 
 SOURCES += \
+    imageprocess.cpp \
     main.cpp \
     mainwindow.cpp \
     camera.cpp \
@@ -32,6 +33,7 @@ SOURCES += \
     v4l2param.cpp
 
 HEADERS += \
+    imageprocess.h \
     logger.hpp \
     mainwindow.h \
     camera.h \

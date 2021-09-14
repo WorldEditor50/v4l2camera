@@ -28,12 +28,10 @@
 #include <iostream>
 #include "libyuv.h"
 #include "libyuv/convert_argb.h"
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 #include "logger.hpp"
 #include "v4l2param.h"
 #include "reallocator.hpp"
+#include "imageprocess.h"
 
 struct FrameData
 {
@@ -113,7 +111,6 @@ public:
                 (data[0] == 0xff && data[1] == 0xd8 &&
                 data[len - 2] == 0xff && data[len - 1] == 0xd9);
     }
-    QImage convertToQImage(const cv::Mat &src);
     void process(int index, int size_);
     void sampling();
     /* open */
