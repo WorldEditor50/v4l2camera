@@ -7,127 +7,74 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    camera = new Camera(this);
-    camera->enumDevice();
+    camera = new V4l2Camera(this);
     /* device */
-    ui->deviceComboBox->addItems(camera->getDevicePath());
-    connect(ui->deviceComboBox, QOverload<const QString&>::of(&QComboBox::currentTextChanged),
-        this, [=](const QString &path){
-         ui->formatComboBox->clear();
-         ui->formatComboBox->addItems(camera->getFormat(path));
-         ui->resolutionComboBox->clear();
-         ui->resolutionComboBox->addItems(camera->getResolution(path));
-         camera->setDevice(path);
-    });
+    ui->deviceComboBox->addItems(camera->findAllDevice());
+    camera->openPath(ui->deviceComboBox->currentText());
+    connect(ui->deviceComboBox, &QComboBox::currentTextChanged,
+        this, &MainWindow::updateDevice);
+    connect(ui->enumDeviceBtn, &QPushButton::clicked, this, &MainWindow::enumDevice);
     /* format */
-    QString path = camera->getCurrentDevicePath();
-    ui->formatComboBox->addItems(camera->getFormat(path));
-    connect(ui->formatComboBox, QOverload<const QString&>::of(&QComboBox::currentTextChanged),
-            camera, &Camera::resetFormat);
+    ui->formatComboBox->addItems(camera->getFormatList());
+    connect(ui->formatComboBox, &QComboBox::currentTextChanged,
+            this, &MainWindow::updateFormat);
     /* resolution */
-    ui->resolutionComboBox->addItems(camera->getResolution(path));
-    connect(ui->resolutionComboBox, QOverload<const QString&>::of(&QComboBox::currentTextChanged),
-            camera, &Camera::resetResolution);
-    connect(camera, &Camera::relay, this, &MainWindow::process);
+    ui->resolutionComboBox->addItems(camera->getResolutionList());
+    connect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
+            this, &MainWindow::updateResolution);
+    connect(camera, &V4l2Camera::send, this, &MainWindow::updateImage);
     /* brightness */
     ui->brightnessSlider->setRange(-64, 64);
-    connect(ui->brightnessSlider, &QSlider::valueChanged, camera, &Camera::setBrightness);
+    connect(ui->brightnessSlider, &QSlider::valueChanged, camera, &V4l2Camera::setBrightness);
     /* white balance */
     ui->whiteBalanceSlider->setRange(0, 6500);
-    connect(ui->whiteBalanceSlider, &QSlider::valueChanged, camera, &Camera::setWhiteBalanceTemperature);
+    connect(ui->whiteBalanceSlider, &QSlider::valueChanged, camera, &V4l2Camera::setWhiteBalanceTemperature);
     ui->whiteBalanceComboBox->addItems(QStringList{"MANUAL","AUTO","INCANDESCENT",
                                                    "FLUORESCENT","FLUORESCENT_H",
                                                    "HORIZON","DAYLIGHT","FLASH","CLOUDY","SHADE"});
     connect(ui->whiteBalanceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            camera, &Camera::setWhiteBalanceMode);
+            camera, &V4l2Camera::setWhiteBalanceMode);
     /* contrast */
     ui->contrastSlider->setRange(0, 64);
-    connect(ui->contrastSlider, &QSlider::valueChanged, camera, &Camera::setContrast);
+    connect(ui->contrastSlider, &QSlider::valueChanged, camera, &V4l2Camera::setContrast);
     /* saturation */
     ui->saturationSlider->setRange(0, 128);
-    connect(ui->saturationSlider, &QSlider::valueChanged, camera, &Camera::setSaturation);
+    connect(ui->saturationSlider, &QSlider::valueChanged, camera, &V4l2Camera::setSaturation);
     /* hue */
     ui->hueSlider->setRange(-64, 64);
-    connect(ui->hueSlider, &QSlider::valueChanged, camera, &Camera::setHue);
+    connect(ui->hueSlider, &QSlider::valueChanged, camera, &V4l2Camera::setHue);
     /* sharpness */
     ui->sharpnessSlider->setRange(0, 64);
-    connect(ui->sharpnessSlider, &QSlider::valueChanged, camera, &Camera::setSharpness);
+    connect(ui->sharpnessSlider, &QSlider::valueChanged, camera, &V4l2Camera::setSharpness);
     /* backlight compensation */
     ui->backlightCompensationSlider->setRange(0, 6000);
-    connect(ui->backlightCompensationSlider, &QSlider::valueChanged, camera, &Camera::getBacklightCompensation);
+    connect(ui->backlightCompensationSlider, &QSlider::valueChanged, camera, &V4l2Camera::getBacklightCompensation);
     /* gamma */
     ui->gammaSlider->setRange(0, 1000);
-    connect(ui->gammaSlider, &QSlider::valueChanged, camera, &Camera::setGamma);
+    connect(ui->gammaSlider, &QSlider::valueChanged, camera, &V4l2Camera::setGamma);
     /* exposure */
     ui->exposureComboBox->addItems(QStringList{"AUTO", "MANUAL", "SHUTTER_PRIORITY", "APERTURE_PRIORITY"});
     connect(ui->exposureComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            camera, &Camera::setExposureMode);
-    ui->exposureSlider->setRange(-256, 256);
-    connect(ui->exposureSlider, &QSlider::valueChanged, camera, &Camera::setExposure);
-    ui->exposureAbsoluteSlider->setRange(0, 3200);
-    connect(ui->exposureAbsoluteSlider, &QSlider::valueChanged, camera, &Camera::setExposureAbsolute);
+            camera, &V4l2Camera::setExposureMode);
+    ui->exposureAbsoluteSlider->setRange(0, 6400);
+    connect(ui->exposureAbsoluteSlider, &QSlider::valueChanged, camera, &V4l2Camera::setExposureAbsolute);
     /* gain */
     ui->gainSlider->setRange(0, 100);
-    connect(ui->gainSlider, &QSlider::valueChanged, camera, &Camera::setGain);
+    connect(ui->gainSlider, &QSlider::valueChanged, camera, &V4l2Camera::setGain);
     /* frequency */
     ui->frequenceComboBox->addItems(QStringList{"DISABLED", "50HZ", "60HZ", "AUTO"});
     connect(ui->frequenceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            camera, &Camera::setFrequency);
-    /* rotate */
-    connect(ui->rotateSlider, &QSlider::valueChanged,
-            camera, &Camera::setRotate);
-    /* zoom */
-    ui->zoomSlider->setRange(0, 256);
-    connect(ui->zoomSlider, &QSlider::valueChanged, camera, &Camera::setZoom);
-    /* focus */
-    //void setFocusMode(unsigned int value);
-    ui->focusComboBox->addItems(QStringList{"AUTO", "NORMAL", "MACRO", "INFINITY"});
-    connect(ui->frequenceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            camera, &Camera::setFocusMode);
-    /* update params */
-    connect(ui->updateBtn, &QPushButton::clicked, camera, &Camera::getParams);
-    connect(camera, &Camera::getParamsFinished, this, [=](const QMap<QString, int> &params){
-        ui->whiteBalanceComboBox->setCurrentIndex(params["WhiteBalanceMode"]);
-        ui->whiteBalanceSlider->setValue(params["WhiteBalanceTemperature"]);
-        /* brightness */
-        ui->brightnessSlider->setValue(params["Brightness"]);
-        /* contrast */
-        ui->contrastSlider->setValue(params["Contrast"]);
-        /* saturation */
-        ui->saturationSlider->setValue(params["Saturation"]);
-        /* hue */
-        ui->hueSlider->setValue(params["Hue"]);
-        /* sharpness */
-        ui->sharpnessSlider->setValue(params["Sharpness"]);
-        /* backlight compensation */
-        ui->backlightCompensationSlider->setValue(params["BacklightCompensation"]);
-        /* gamma */
-        ui->gammaSlider->setValue(params["Gamma"]);
-        /* exposure */
-        ui->exposureComboBox->setCurrentIndex(params["ExposureMode"]);
-        ui->exposureSlider->setValue(params["Exposure"]);
-        ui->exposureAbsoluteSlider->setValue(params["ExposureAbsolute"]);
-        /* gain */
-        ui->gainSlider->setValue(params["Gain"]);
-        /* frequency */
-        ui->frequenceComboBox->setCurrentIndex(params["Frequency"]);
-        /* zoom */
-        /* focus */
-        ui->focusComboBox->setCurrentIndex(params["FocusMode"]);
-    });
+            camera, &V4l2Camera::setFrequency);
     /* set default */
-    connect(ui->defaultBtn, &QPushButton::clicked, camera, &Camera::setDefaultParams);
-    /* start */
-    connect(ui->startBtn, &QPushButton::clicked, camera, &Camera::wakeUp);
-    connect(ui->stopBtn, &QPushButton::clicked, camera, &Camera::pause);
+    connect(ui->defaultBtn, &QPushButton::clicked, this, &MainWindow::setDefault);
     if (ui->deviceComboBox->currentText().isEmpty() ||
             ui->formatComboBox->currentText().isEmpty() ||
             ui->resolutionComboBox->currentText().isEmpty()) {
-        QMessageBox::warning(this, "v4l2", "No device", QMessageBox::Ok);
+        //QMessageBox::warning(this, "v4l2", "No device", QMessageBox::Ok);
     } else {
-        camera->start(ui->deviceComboBox->currentText(),
-                      ui->formatComboBox->currentText(),
+        camera->start(ui->formatComboBox->currentText(),
                       ui->resolutionComboBox->currentText());
+        updateParam();
     }
 }
 
@@ -136,14 +83,91 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::process(const QImage &img)
+void MainWindow::updateImage(const QImage &img)
 {
     if (img.isNull()) {
         qDebug()<<"invalid image";
         return;
     }
-    //QPixmap pixmap = QPixmap::fromImage(img.mirrored(true, true));
     QPixmap pixmap = QPixmap::fromImage(img);
     ui->cameralabel->updatePixmap(pixmap);
     return;
+}
+
+void MainWindow::enumDevice()
+{
+    disconnect(ui->deviceComboBox, &QComboBox::currentTextChanged,
+        this, &MainWindow::updateDevice);
+    ui->deviceComboBox->addItems(camera->findAllDevice());
+    connect(ui->deviceComboBox, &QComboBox::currentTextChanged,
+        this, &MainWindow::updateDevice);
+}
+
+void MainWindow::updateDevice(const QString &path)
+{
+    camera->clear();
+    camera->openPath(path);
+    disconnect(ui->formatComboBox, &QComboBox::currentTextChanged,
+               this, &MainWindow::updateFormat);
+    disconnect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
+               this, &MainWindow::updateResolution);
+    ui->formatComboBox->clear();
+    ui->resolutionComboBox->clear();
+    ui->formatComboBox->addItems(camera->getFormatList());
+    ui->resolutionComboBox->addItems(camera->getResolutionList());
+    connect(ui->formatComboBox, &QComboBox::currentTextChanged,
+            this, &MainWindow::updateFormat);
+    connect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
+            this, &MainWindow::updateResolution);
+    camera->start(ui->formatComboBox->currentText(),
+                  ui->resolutionComboBox->currentText());
+    updateParam();
+    return;
+}
+
+void MainWindow::updateFormat(const QString &format)
+{
+    camera->restart(format, ui->resolutionComboBox->currentText());
+    return;
+}
+
+void MainWindow::updateResolution(const QString &res)
+{
+    camera->restart(ui->formatComboBox->currentText(), res);
+    return;
+}
+
+void MainWindow::updateParam()
+{
+    /* brightness */
+    ui->brightnessSlider->setValue(camera->getBrightness());
+    /* white balance */
+    ui->whiteBalanceSlider->setValue(camera->getWhiteBalanceTemperature());
+    ui->whiteBalanceComboBox->setCurrentIndex(camera->getWhiteBalanceMode());
+    /* contrast */
+    ui->contrastSlider->setValue(camera->getContrast());
+    /* saturation */
+    ui->saturationSlider->setValue(camera->getSaturation());
+    /* hue */
+    ui->hueSlider->setValue(camera->getHue());
+    /* sharpness */
+    ui->sharpnessSlider->setValue(camera->getSharpness());
+    /* backlight compensation */
+    ui->backlightCompensationSlider->setValue(camera->getBacklightCompensation());
+    /* gamma */
+    ui->gammaSlider->setValue(camera->getGamma());
+    /* exposure */
+    ui->exposureComboBox->setCurrentIndex(camera->getExposureMode());
+    ui->exposureAbsoluteSlider->setValue(camera->getExposureAbsolute());
+    /* gain */
+    ui->gainSlider->setValue(camera->getGain());
+    /* frequency */
+    ui->frequenceComboBox->setCurrentIndex(camera->getFrequency());
+    return;
+}
+
+void MainWindow::setDefault()
+{
+    camera->setDefaultParam();
+    updateParam();
 }

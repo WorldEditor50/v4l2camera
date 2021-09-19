@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 #include <QPixmap>
-#include "camera.h"
+#include "v4l2camera.h"
 
 namespace Ui {
 class MainWindow;
@@ -16,10 +16,17 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
-    void process(const QImage &img);
+public slots:
+    void updateImage(const QImage &img);
+    void enumDevice();
+    void updateDevice(const QString &path);
+    void updateFormat(const QString &format);
+    void updateResolution(const QString &res);
+    void updateParam();
+    void setDefault();
 private:
     Ui::MainWindow *ui;
-    Camera *camera;
+    V4l2Camera *camera;
 };
 
 #endif // MAINWINDOW_H

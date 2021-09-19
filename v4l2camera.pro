@@ -27,19 +27,15 @@ SOURCES += \
     imageprocess.cpp \
     main.cpp \
     mainwindow.cpp \
-    camera.cpp \
     cameralabel.cpp \
-    v4l2device.cpp \
+    v4l2camera.cpp \
     v4l2param.cpp
 
 HEADERS += \
     imageprocess.h \
-    logger.hpp \
     mainwindow.h \
-    camera.h \
     cameralabel.h \
-    reallocator.hpp \
-    v4l2device.h \
+    v4l2camera.h \
     v4l2param.h
 
 FORMS += \

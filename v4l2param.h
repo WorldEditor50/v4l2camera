@@ -1,5 +1,5 @@
-#ifndef CAMERAPARAM_H
-#define CAMERAPARAM_H
+#ifndef V4L2PARAM_H
+#define V4L2PARAM_H
 #include <QFile>
 #include <QDomDocument>
 #include <QDomElement>
@@ -24,16 +24,19 @@ public:
     int width;
     int height;
     int formatInt;
+    /* pid vid */
+    int pid;
+    int vid;
     /* control */
     QMap<QString, Control> control;
 public:
     V4l2Param();
     ~V4l2Param(){}
     void setFormat(int w, int h, const QString &format);
-    void setDefault();
+    void defaultParam();
     void toXml(const QString& fileName);
     QMap<QString, int> toMap();
     bool loadFromXml(const QString& fileName);
     void show();
 };
-#endif // CAMERAPARAM_H
+#endif // V4L2PARAM_H

@@ -32,7 +32,7 @@ void V4l2Param::setFormat(int w, int h, const QString &format)
     return;
 }
 
-void V4l2Param::setDefault()
+void V4l2Param::defaultParam()
 {
     control["WhiteBalanceMode"] = Control(V4L2_CID_AUTO_WHITE_BALANCE, 0);
     control["WhiteBalanceTemperature"] = Control(V4L2_CID_WHITE_BALANCE_TEMPERATURE, 4600);
@@ -41,13 +41,13 @@ void V4l2Param::setDefault()
     control["Contrast"] = Control(V4L2_CID_CONTRAST, 32);
     control["Saturation"] = Control(V4L2_CID_SATURATION, 64);
     control["Hue"] = Control(V4L2_CID_HUE, 0);
-    control["Sharpness"] = Control(V4L2_CID_SHARPNESS, 2);
+    control["Sharpness"] = Control(V4L2_CID_SHARPNESS, 3);
     control["BacklightCompensation"] = Control(V4L2_CID_BACKLIGHT_COMPENSATION, 0);
-    control["Gamma"] = Control(V4L2_CID_GAMMA, 0);
-    control["ExposureMode"] = Control(V4L2_CID_EXPOSURE_AUTO, V4L2_EXPOSURE_APERTURE_PRIORITY);
+    control["Gamma"] = Control(V4L2_CID_GAMMA, 200);
+    control["ExposureMode"] = Control(V4L2_CID_EXPOSURE_AUTO, V4L2_EXPOSURE_MANUAL);
     control["ExposureAbsolute"] = Control(V4L2_CID_EXPOSURE_ABSOLUTE, 1500);
     control["AutoGain"] = Control(V4L2_CID_AUTOGAIN, 1);
-    control["Gain"] = Control(V4L2_CID_GAIN, 4);
+    control["Gain"] = Control(V4L2_CID_GAIN, 0);
     control["PowerLineFrequence"] = Control(V4L2_CID_POWER_LINE_FREQUENCY, V4L2_CID_POWER_LINE_FREQUENCY_50HZ);
     return;
 }
@@ -67,7 +67,7 @@ void V4l2Param::toXml(const QString &fileName)
     /* root */
     QDomElement root = doc.createElement("Camera");
     doc.appendChild(root);
-    auto insertElement = [&doc](const QString &key, const QString &value, QDomElement &parentElement) {
+    auto insertElement = [&doc, this](const QString &key, const QString &value, QDomElement &parentElement) {
         QDomElement element = doc.createElement(key);
         element.appendChild(doc.createTextNode(value));
         parentElement.appendChild(element);
@@ -81,7 +81,7 @@ void V4l2Param::toXml(const QString &fileName)
     root.appendChild(param);
     /* output */
     QTextStream out(&file);
-    doc.save(out, 4);
+    doc.save(out,4);
     file.close();
     return;
 }
