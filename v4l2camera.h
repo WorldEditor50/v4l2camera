@@ -84,7 +84,7 @@ public:
     }
 };
 template <typename T>
-QMap<unsigned long, QVector<T*> > V4l2Allocator<T>::mem;
+QMap<std::size_t, QVector<T*> > V4l2Allocator<T>::mem;
 template <typename T>
 QMutex V4l2Allocator<T>::mutex;
 
@@ -120,6 +120,7 @@ public:
         }
     };
     using ProcessFunc = std::function<QImage(int, int, unsigned char*)>;
+    static int maxDeviceNum;
 protected:
     int fd;
     int mmapBlockCount;

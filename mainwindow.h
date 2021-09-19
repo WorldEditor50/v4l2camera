@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QPixmap>
 #include "v4l2camera.h"
+#include "imageprocess.h"
 
 namespace Ui {
 class MainWindow;

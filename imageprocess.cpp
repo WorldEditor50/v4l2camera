@@ -31,7 +31,11 @@ QImage Imageprocess::invoke(int width, int height, unsigned char *data)
     if (data == nullptr) {
         return QImage();
     }
-    return laplace(width, height, data);
+    cv::Mat src(height, width, Imageprocess::Type, data);
+    cv::cvtColor(src, src, cv::COLOR_RGBA2GRAY);
+    cv::blur(src, src, cv::Size(3, 3));
+    cv::Canny(src, src, 60, 120);
+    return fromMat(src);
 }
 
 QImage Imageprocess::laplace(int width, int height, unsigned char *data)

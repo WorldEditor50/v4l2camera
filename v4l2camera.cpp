@@ -1,11 +1,10 @@
 ﻿#include "v4l2camera.h"
 
+int V4l2Camera::maxDeviceNum = 8;
 V4l2Camera::~V4l2Camera()
 {
-    if (isRunning.load()) {
-        stopSample();
-    }
-    closeDevice();
+    clear();
+    V4l2Allocator<unsigned long>::clear();
 }
 QString V4l2Camera::shellExecute(const QString& command)
 {
@@ -35,24 +34,16 @@ QString V4l2Camera::getVidPid(const QString &name)
 QStringList V4l2Camera::findDevice(const QString &key, const std::function<bool(const QString &, const QString &)> &func)
 {
     QStringList devicePathList;
-    DIR *dir;
-    if ((dir = opendir("/dev")) == nullptr) {
-        perror("opendir fail");
-        return devicePathList;
-    }
-    struct dirent *ptr = nullptr;
-    while ((ptr=readdir(dir)) != nullptr) {
-        if (ptr->d_type != DT_CHR) {
-            continue;
-        }
-        if (QString(ptr->d_name).contains("video") == false) {
+    for (int i = 0; i < maxDeviceNum; i++) {
+        QString video = QString("video%1").arg(i);
+        if (QDir("/dev").exists(video) == false) {
             continue;
         }
         /* filter device */
-        if (func(key, ptr->d_name) == false) {
+        if (func(key, video) == false) {
             continue;
         }
-        QString devPath = QString("/dev/%1").arg(ptr->d_name);
+        QString devPath = QString("/dev/%1").arg(video);
         int fd = open(devPath.toUtf8(), O_RDWR | O_NONBLOCK, 0);
         if (fd < 0) {
             qDebug()<<"fail to open device.";

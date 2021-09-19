@@ -67,6 +67,12 @@ MainWindow::MainWindow(QWidget *parent) :
             camera, &V4l2Camera::setFrequency);
     /* set default */
     connect(ui->defaultBtn, &QPushButton::clicked, this, &MainWindow::setDefault);
+
+    /* process */
+    camera->setProcessFunc([](int width, int height, unsigned char* data)->QImage{
+        return Imageprocess::invoke(width, height, data);
+        //return QImage(data, width, height, QImage::Format_ARGB32);
+    });
     if (ui->deviceComboBox->currentText().isEmpty() ||
             ui->formatComboBox->currentText().isEmpty() ||
             ui->resolutionComboBox->currentText().isEmpty()) {
