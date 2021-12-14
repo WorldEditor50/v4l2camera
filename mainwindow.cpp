@@ -22,7 +22,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->resolutionComboBox->addItems(camera->getResolutionList());
     connect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
             this, &MainWindow::updateResolution);
-    connect(camera, &V4l2Camera::send, this, &MainWindow::updateImage);
     /* brightness */
     ui->brightnessSlider->setRange(-64, 64);
     connect(ui->brightnessSlider, &QSlider::valueChanged, camera, &V4l2Camera::setBrightness);
@@ -69,9 +68,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->defaultBtn, &QPushButton::clicked, this, &MainWindow::setDefault);
 
     /* process */
-    camera->setProcessFunc([](int width, int height, unsigned char* data)->QImage{
-        return Imageprocess::invoke(width, height, data);
-        //return QImage(data, width, height, QImage::Format_ARGB32);
+    camera->setProcessFunc([this](unsigned char* data, int width, int height){
+        QImage img = Imageprocess::invoke(width, height, data);
+        emit sendImage(img);
     });
     if (ui->deviceComboBox->currentText().isEmpty() ||
             ui->formatComboBox->currentText().isEmpty() ||
@@ -82,6 +81,7 @@ MainWindow::MainWindow(QWidget *parent) :
                       ui->resolutionComboBox->currentText());
         updateParam();
     }
+    connect(this, &MainWindow::sendImage, this, &MainWindow::updateImage);
 }
 
 MainWindow::~MainWindow()

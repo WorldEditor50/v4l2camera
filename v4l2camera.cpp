@@ -4,29 +4,22 @@ int V4l2Camera::maxDeviceNum = 8;
 V4l2Camera::~V4l2Camera()
 {
     clear();
-    V4l2Allocator<unsigned long>::clear();
 }
-QString V4l2Camera::shellExecute(const QString& command)
+QString V4l2Camera::executeCmd(const QString& cmd)
 {
-    QString result = "";
-    FILE *fpRead = popen(command.toUtf8(), "r");
-    char buf[1024];
-    memset(buf,'\0',sizeof(buf));
-    while (fgets(buf, 1024-1, fpRead)!=NULL) {
-        result = buf;
-    }
-    if (fpRead != NULL) {
-        pclose(fpRead);
-    }
+    QProcess proc;
+    proc.execute(cmd);
+    proc.waitForFinished();
+    QString result = proc.readAll();
     result.remove('\n');
     return result;
 }
 
 QString V4l2Camera::getVidPid(const QString &name)
 {
-    QString vid = shellExecute(QString("cat /sys/class/video4linux/%1/device/input/input*/id/vendor")
+    QString vid = executeCmd(QString("cat /sys/class/video4linux/%1/device/input/input*/id/vendor")
                                    .arg(name));
-    QString pid = shellExecute(QString("cat /sys/class/video4linux/%1/device/input/input*/id/product")
+    QString pid = executeCmd(QString("cat /sys/class/video4linux/%1/device/input/input*/id/product")
                                    .arg(name));
     return QString("%1%2").arg(vid).arg(pid).toUpper();
 }
@@ -79,7 +72,7 @@ QStringList V4l2Camera::findDeviceByVidPid(const QString &vidpid)
 QStringList V4l2Camera::findDeviceByVid(const QString &vid)
 {
     return findDevice(vid, [](const QString &vid, const QString &name)->bool {
-        return vid == shellExecute(QString("cat /sys/class/video4linux/%1/device/input/input*/id/vendor")
+        return vid == executeCmd(QString("cat /sys/class/video4linux/%1/device/input/input*/id/vendor")
                                        .arg(name)).toUpper();
     });
 }
@@ -240,34 +233,37 @@ void V4l2Camera::clear()
 
 void V4l2Camera::process(int index, int size_)
 {
-    if (index >= sharedMemoryBlock.size()) {
+    if (index >= mmapBlockCount) {
         std::cout<<"invalid index"<<std::endl;
         return;
     }
     int width = param.width;
     int height = param.height;
-    unsigned long len = width * height * 4;
-    unsigned char* data = V4l2Allocator<unsigned char>::get(len);
-    unsigned char *sharedMemoryPtr = (unsigned char*)sharedMemoryBlock[index].start;
+    if (images[index].ptr == nullptr) {
+        images[index] = Image(width, height, 4);
+    } else {
+        if (images[index].size_ < width * height * 4) {
+            images[index].clear();
+            images[index] = Image(width, height, 4);
+        }
+    }
+    memset(images[index].ptr, 0, images[index].size_);
     /* set format */
     if (formatDesc == FORMAT_JPEG) {
-        libyuv::MJPGToARGB((const uint8*)sharedMemoryPtr, size_,
-                           data, width * 4,
+        libyuv::MJPGToARGB((const uint8*)sharedMemory[index].ptr, size_,
+                           images[index].ptr, width * 4,
                            width, height, width, height);
     } else if(formatDesc == FORMAT_YUYV) {
         int alignedWidth = (width + 1) & ~1;
-        libyuv::YUY2ToARGB(sharedMemoryPtr, alignedWidth * 2,
-                           data, width * 4,
+        libyuv::YUY2ToARGB(sharedMemory[index].ptr, alignedWidth * 2,
+                           images[index].ptr, width * 4,
                            width, height);
     } else {
-        V4l2Allocator<unsigned char>::recycle(len, data);
         qDebug()<<"decode failed."<<" format: "<<formatDesc;
         return;
     }
     /* process */
-    QImage img = processImage(width, height, data);
-    emit send(img);
-    V4l2Allocator<unsigned char>::recycle(len, data);
+    processImage(images[index].ptr, width, height);
     return;
 }
 
@@ -658,8 +654,7 @@ bool V4l2Camera::attachSharedMemory()
         return false;
     }
     /* map kernel cache to user process */
-    sharedMemoryBlock = QVector<SharedMemory>(mmapBlockCount);
-    for (int i = 0; i < sharedMemoryBlock.size(); i++) {
+    for (int i = 0; i < mmapBlockCount; i++) {
         struct v4l2_buffer buf;
         memset(&buf, 0, sizeof(buf));
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -672,13 +667,13 @@ bool V4l2Camera::attachSharedMemory()
             fd = -1;
             return false;
         }
-        sharedMemoryBlock[i].length = buf.length;
-        sharedMemoryBlock[i].start = (char *)mmap(NULL,
+        sharedMemory[i].size_ = buf.length;
+        sharedMemory[i].ptr = (unsigned char *)mmap(NULL,
                                         buf.length,
                                         PROT_READ | PROT_WRITE,
                                         MAP_SHARED,
                                         fd, buf.m.offset);
-        if (sharedMemoryBlock[i].start == MAP_FAILED) {
+        if (sharedMemory[i].ptr == MAP_FAILED) {
             qDebug()<<"Fail to mmap";
             close(fd);
             fd = -1;
@@ -686,7 +681,7 @@ bool V4l2Camera::attachSharedMemory()
         }
     }
     /* place the kernel cache to a queue */
-    for (int i = 0; i < sharedMemoryBlock.size(); i++) {
+    for (int i = 0; i < mmapBlockCount; i++) {
         struct v4l2_buffer buf;
         memset(&buf, 0, sizeof(buf));
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -703,12 +698,11 @@ bool V4l2Camera::attachSharedMemory()
 
 void V4l2Camera::dettachSharedMemory()
 {
-    for (auto& x : sharedMemoryBlock) {
-        if (munmap(x.start, x.length) == -1) {
+    for (int i = 0; i < mmapBlockCount; i++) {
+        if (munmap(sharedMemory[i].ptr, sharedMemory[i].size_) == -1) {
             qDebug()<<"Failed to munmap";
         }
     }
-    sharedMemoryBlock.clear();
     return;
 }
 
@@ -730,8 +724,7 @@ bool V4l2Camera::stopSample()
 {
     isRunning.store(0);
     future.waitForFinished();
-    v4l2_buf_type type;
-    type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
         qDebug()<<"Fail to ioctl VIDIOC_STREAMOFF";
         return false;

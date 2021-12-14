@@ -24,78 +24,96 @@
 #include <QImage>
 #include <QObject>
 #include <QtConcurrent/QtConcurrent>
+#include <QProcess>
 #include <functional>
 #include <iostream>
 #include "v4l2param.h"
 #include "libyuv.h"
 #include "libyuv/convert_argb.h"
 
-template <typename T>
-class V4l2Allocator
+class Image
 {
-private:
-    static QMap<std::size_t, QVector<T*> > mem;
-    static QMutex mutex;
-private:
-    V4l2Allocator() = default;
-    ~V4l2Allocator()
+public:
+    int width;
+    int height;
+    int channel;
+    unsigned char *ptr;
+    std::size_t size_;
+public:
+    Image():width(0),height(0),channel(3),ptr(nullptr),size_(0){}
+    Image(int w, int h, int c):width(w),height(h),channel(c)
+    {
+        size_ = w * h * c;
+        ptr = new unsigned char[size_];
+    }
+    Image(const Image &img):width(img.width),height(img.height),channel(img.channel)
+    {
+        size_ = width * height * channel;
+        ptr = new unsigned char[size_];
+        memcpy(ptr, img.ptr, size_);
+    }
+    Image &operator=(const Image &img)
+    {
+        if (this == &img) {
+            return *this;
+        }
+        width = img.width;
+        height = img.height;
+        channel = img.channel;
+        size_ = width * height * channel;
+        ptr = new unsigned char[size_];
+        memcpy(ptr, img.ptr, size_);
+        return *this;
+    }
+    Image(Image &&img)
+        :width(img.width),height(img.height),channel(img.channel),
+          ptr(img.ptr),size_(img.size_)
+    {
+        img.width = 0;
+        img.height = 0;
+        img.channel = 0;
+        img.ptr = nullptr;
+        img.size_ = 0;
+    }
+    Image &operator=(Image &&img)
+    {
+        if (this == &img) {
+            return *this;
+        }
+        width = img.width;
+        height = img.height;
+        channel = img.channel;
+        size_ =img.size_;
+        ptr = img.ptr;
+        img.width = 0;
+        img.height = 0;
+        img.channel = 0;
+        img.ptr = nullptr;
+        img.size_ = 0;
+        return *this;
+    }
+    ~Image()
     {
         clear();
     }
-public:
-
-    static T* get(std::size_t size_)
+    void clear()
     {
-        if (size_ == 0) {
-            return nullptr;
+        if (ptr != nullptr) {
+            delete [] ptr;
+            ptr = nullptr;
+            width = 0;
+            height = 0;
+            channel = 0;
+            size_ = 0;
         }
-        QMutexLocker locker(&mutex);
-        T* ptr = nullptr;
-        if (mem.find(size_) == mem.end()) {
-            ptr = new T[size_];
-        } else {
-            ptr = mem[size_].back();
-            mem[size_].pop_back();
-        }
-        return ptr;
-    }
-    static void recycle(std::size_t size_, T* &ptr)
-    {
-        if (size_ == 0 || ptr == nullptr) {
-            return;
-        }
-        QMutexLocker locker(&mutex);
-        mem[size_].push_back(ptr);
-        ptr = nullptr;
-        return;
-    }
-    static void clear()
-    {
-        QMutexLocker locker(&mutex);
-        for (auto& block : mem) {
-            for (int i = 0; i < block.size(); i++) {
-                T* ptr = block.at(i);
-                delete [] ptr;
-            }
-            block.clear();
-        }
-        mem.clear();
         return;
     }
 };
-template <typename T>
-QMap<std::size_t, QVector<T*> > V4l2Allocator<T>::mem;
-template <typename T>
-QMutex V4l2Allocator<T>::mutex;
 
 class V4l2Camera : public QObject
 {
     Q_OBJECT
 public:
-    struct SharedMemory {
-        void *start;
-        int length;
-    };
     struct Resolution {
         unsigned int width;
         unsigned int height;
@@ -119,28 +137,27 @@ public:
             return ret;
         }
     };
-    using ProcessFunc = std::function<QImage(int, int, unsigned char*)>;
+    using ProcessFunc = std::function<void(unsigned char*, int, int)>;
     static int maxDeviceNum;
 protected:
     int fd;
-    int mmapBlockCount;
+    static constexpr int mmapBlockCount = 4;
     int sampleTimeout;
     QString devPath;
     QVector<Format> formatList;
     QString formatDesc;
     QAtomicInt isRunning;
-    QVector<SharedMemory> sharedMemoryBlock;
+    Image sharedMemory[mmapBlockCount];
+    Image images[mmapBlockCount];
     QFuture<void> future;
     V4l2Param param;
     ProcessFunc processImage;
-signals:
-    void send(const QImage &img);
 public:
     explicit V4l2Camera(QObject *parent = nullptr):QObject(parent),
-        fd(-1), mmapBlockCount(4), sampleTimeout(3),
+        fd(-1), sampleTimeout(3),
         formatDesc(FORMAT_JPEG), isRunning(0),
-        processImage([](int width, int height, unsigned char* data)->QImage {
-            return QImage(data, width, height, QImage::Format_ARGB32);
+        processImage([](unsigned char* data, int width, int height) {
+            QImage(data, width, height, QImage::Format_ARGB32);
         }) {}
     ~V4l2Camera();
     static QStringList findDevice(const QString &key, const std::function<bool(const QString &, const QString &)> &func);
@@ -208,7 +225,7 @@ public slots:
     void loadParams(const QString &paramXml);
 protected:
     /* device */
-    static QString shellExecute(const QString& command);
+    static QString executeCmd(const QString& cmd);
     static QString getVidPid(const QString &name);
     static int openDevice(const QString &path);
     void closeDevice();

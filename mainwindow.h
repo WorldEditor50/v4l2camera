@@ -17,6 +17,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
+signals:
+    void sendImage(const QImage &img);
 public slots:
     void updateImage(const QImage &img);
     void enumDevice();
