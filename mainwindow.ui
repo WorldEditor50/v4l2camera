@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
-     <widget class="CameraLabel" name="cameralabel">
+     <widget class="QLabel" name="cameralabel">
       <property name="minimumSize">
        <size>
         <width>600</width>
@@ -43,22 +43,21 @@
        </size>
       </property>
       <layout class="QGridLayout" name="gridLayout">
-       <item row="13" column="1">
-        <widget class="QSlider" name="sharpnessSlider">
+       <item row="5" column="0">
+        <spacer name="verticalSpacer">
          <property name="orientation">
-          <enum>Qt::Horizontal</enum>
+          <enum>Qt::Vertical</enum>
          </property>
-        </widget>
-       </item>
-       <item row="19" column="0">
-        <widget class="QLabel" name="gainLabel">
-         <property name="text">
-          <string>gain</string>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
          </property>
-        </widget>
+        </spacer>
        </item>
-       <item row="3" column="1">
-        <widget class="QComboBox" name="formatComboBox">
+       <item row="0" column="1">
+        <widget class="QComboBox" name="deviceComboBox">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -74,41 +73,6 @@
          </property>
         </widget>
        </item>
-       <item row="11" column="0">
-        <widget class="QLabel" name="saturationLabel">
-         <property name="text">
-          <string>saturation:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="14" column="1">
-        <widget class="QSlider" name="backlightCompensationSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="17" column="0">
-        <widget class="QLabel" name="exposureLabel">
-         <property name="text">
-          <string>exposure</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="resolutionLabel">
-         <property name="text">
-          <string>resolution:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="12" column="0">
-        <widget class="QLabel" name="hueLabel">
-         <property name="text">
-          <string>hue:</string>
-         </property>
-        </widget>
-       </item>
        <item row="2" column="1">
         <widget class="QComboBox" name="resolutionComboBox">
          <property name="sizePolicy">
@@ -119,94 +83,15 @@
          </property>
         </widget>
        </item>
-       <item row="17" column="1">
-        <widget class="QComboBox" name="exposureComboBox"/>
-       </item>
-       <item row="15" column="0">
-        <widget class="QLabel" name="gammaLabel">
+       <item row="2" column="0">
+        <widget class="QLabel" name="resolutionLabel">
          <property name="text">
-          <string>gamma</string>
+          <string>resolution:</string>
          </property>
         </widget>
        </item>
-       <item row="19" column="1">
-        <widget class="QSlider" name="gainSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="0">
-        <widget class="QLabel" name="whiteBalanceLabel">
-         <property name="text">
-          <string>white balance:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="21" column="0">
-        <widget class="QLabel" name="frequencyLabel">
-         <property name="text">
-          <string>frequency</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="1">
-        <widget class="QSlider" name="contrastSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="12" column="1">
-        <widget class="QSlider" name="hueSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="21" column="1">
-        <widget class="QComboBox" name="frequenceComboBox"/>
-       </item>
-       <item row="18" column="1">
-        <widget class="QSlider" name="exposureAbsoluteSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="0">
-        <widget class="QLabel" name="contrastLabel">
-         <property name="text">
-          <string>contrast:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="14" column="0">
-        <widget class="QLabel" name="backlightCompensationLabel">
-         <property name="text">
-          <string>backlight compensation</string>
-         </property>
-        </widget>
-       </item>
-       <item row="11" column="1">
-        <widget class="QSlider" name="saturationSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="1">
-        <widget class="QComboBox" name="whiteBalanceComboBox"/>
-       </item>
-       <item row="22" column="1">
-        <widget class="QPushButton" name="defaultBtn">
-         <property name="text">
-          <string>default</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QComboBox" name="deviceComboBox">
+       <item row="3" column="1">
+        <widget class="QComboBox" name="formatComboBox">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -222,52 +107,17 @@
          </property>
         </widget>
        </item>
-       <item row="9" column="1">
-        <widget class="QSlider" name="whiteBalanceSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="1">
-        <widget class="QSlider" name="brightnessSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="15" column="1">
-        <widget class="QSlider" name="gammaSlider">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-        </widget>
-       </item>
-       <item row="18" column="0">
-        <widget class="QLabel" name="exposureAbsoluteLabel">
-         <property name="text">
-          <string>exposure absolute</string>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="brightLabel">
-         <property name="text">
-          <string>brightness:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="13" column="0">
-        <widget class="QLabel" name="sharpnessLabel">
-         <property name="text">
-          <string>sharpness:</string>
-         </property>
-        </widget>
-       </item>
        <item row="1" column="1">
         <widget class="QPushButton" name="enumDeviceBtn">
          <property name="text">
           <string>enum device</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QPushButton" name="settingBtn">
+         <property name="text">
+          <string>settings</string>
          </property>
         </widget>
        </item>
@@ -297,13 +147,6 @@
   <widget class="QStatusBar" name="statusBar"/>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <customwidgets>
-  <customwidget>
-   <class>CameraLabel</class>
-   <extends>QLabel</extends>
-   <header location="global">cameralabel.h</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

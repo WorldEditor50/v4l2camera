@@ -43,12 +43,13 @@ public:
     Image():width(0),height(0),channel(3),ptr(nullptr),size_(0){}
     Image(int w, int h, int c):width(w),height(h),channel(c)
     {
-        size_ = w * h * c;
+        int widthstep = (width * channel + 3)/4*4;
+        size_ = widthstep * height;
         ptr = new unsigned char[size_];
     }
-    Image(const Image &img):width(img.width),height(img.height),channel(img.channel)
+    Image(const Image &img)
+        :width(img.width),height(img.height),channel(img.channel),size_(img.size_)
     {
-        size_ = width * height * channel;
         ptr = new unsigned char[size_];
         memcpy(ptr, img.ptr, size_);
     }
@@ -60,7 +61,7 @@ public:
         width = img.width;
         height = img.height;
         channel = img.channel;
-        size_ = width * height * channel;
+        size_ = img.size_;
         ptr = new unsigned char[size_];
         memcpy(ptr, img.ptr, size_);
         return *this;

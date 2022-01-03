@@ -16,8 +16,8 @@ QImage Imageprocess::fromMat(const cv::Mat &src)
     default:
         img = QImage(src.cols, src.rows, QImage::Format_Indexed8);
         uchar *data = src.data;
-        for(int i = 0; i < src.rows ; i++){
-            uchar* rowdata = img.scanLine( i );
+        for (int i = 0; i < src.rows ; i++){
+            uchar* rowdata = img.scanLine(i);
             memcpy(rowdata, data , src.cols);
             data += src.cols;
         }
@@ -42,9 +42,6 @@ QImage Imageprocess::laplace(int width, int height, unsigned char *data)
 {
     /* laplace  */
     cv::Mat src(height, width, Imageprocess::Type, data);
-    cv::cvtColor(src, src, cv::COLOR_RGBA2GRAY);
-    cv::blur(src, src, cv::Size(3, 3));
-    cv::Canny(src, src, 60, 150);
     cv::Mat gaussBlurImg;
     cv::GaussianBlur(src, gaussBlurImg, cv::Size(3, 3), 0);
     cv::Mat gray;

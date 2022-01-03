@@ -5,6 +5,7 @@
 #include <QPixmap>
 #include "v4l2camera.h"
 #include "imageprocess.h"
+#include "settingdialog.h"
 
 namespace Ui {
 class MainWindow;
@@ -25,11 +26,10 @@ public slots:
     void updateDevice(const QString &path);
     void updateFormat(const QString &format);
     void updateResolution(const QString &res);
-    void updateParam();
-    void setDefault();
 private:
     Ui::MainWindow *ui;
     V4l2Camera *camera;
+    SettingDialog *dialog;
 };
 
 #endif // MAINWINDOW_H

@@ -702,6 +702,7 @@ void V4l2Camera::dettachSharedMemory()
         if (munmap(sharedMemory[i].ptr, sharedMemory[i].size_) == -1) {
             qDebug()<<"Failed to munmap";
         }
+        sharedMemory[i].ptr = nullptr;
     }
     return;
 }

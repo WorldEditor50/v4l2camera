@@ -27,19 +27,20 @@ SOURCES += \
     imageprocess.cpp \
     main.cpp \
     mainwindow.cpp \
-    cameralabel.cpp \
+    settingdialog.cpp \
     v4l2camera.cpp \
     v4l2param.cpp
 
 HEADERS += \
     imageprocess.h \
     mainwindow.h \
-    cameralabel.h \
+    settingdialog.h \
     v4l2camera.h \
     v4l2param.h
 
 FORMS += \
-        mainwindow.ui
+        mainwindow.ui \
+        settingdialog.ui
 #libyuv
 LIBYUV_PATH = /home/eigen/MySpace/3rdPartyLibrary/libyuv
 INCLUDEPATH += $$LIBYUV_PATH/include
