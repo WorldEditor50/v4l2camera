@@ -1,6 +1,7 @@
 #include "imageprocess.h"
+#include <QDebug>
 
-int Imageprocess::Type = CV_8UC4;
+int Imageprocess::steps = 0;
 
 QImage Imageprocess::fromMat(const cv::Mat &src)
 {
@@ -31,7 +32,7 @@ QImage Imageprocess::invoke(int width, int height, unsigned char *data)
     if (data == nullptr) {
         return QImage();
     }
-    cv::Mat src(height, width, Imageprocess::Type, data);
+    cv::Mat src(height, width, CV_8UC4, data);
     cv::cvtColor(src, src, cv::COLOR_RGBA2GRAY);
     cv::blur(src, src, cv::Size(3, 3));
     cv::Canny(src, src, 60, 120);
@@ -41,7 +42,7 @@ QImage Imageprocess::invoke(int width, int height, unsigned char *data)
 QImage Imageprocess::laplace(int width, int height, unsigned char *data)
 {
     /* laplace  */
-    cv::Mat src(height, width, Imageprocess::Type, data);
+    cv::Mat src(height, width, CV_8UC4, data);
     cv::Mat gaussBlurImg;
     cv::GaussianBlur(src, gaussBlurImg, cv::Size(3, 3), 0);
     cv::Mat gray;
@@ -51,6 +52,16 @@ QImage Imageprocess::laplace(int width, int height, unsigned char *data)
     cv::Mat dst;
     cv::convertScaleAbs(filterImg, dst);
     return fromMat(dst);
+}
+
+QImage Imageprocess::yolov5(int width, int height, unsigned char *data)
+{
+    cv::Mat src(height, width, CV_8UC4, data);
+    std::vector<Yolov5::Object> objects;
+    Yolov5::instance().detect(src, objects);
+    qDebug()<<"objects count:"<<objects.size();
+    Yolov5::instance().draw(src, objects);
+    return fromMat(src);
 }
 
 

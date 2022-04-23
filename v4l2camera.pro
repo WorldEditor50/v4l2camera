@@ -29,14 +29,16 @@ SOURCES += \
     mainwindow.cpp \
     settingdialog.cpp \
     v4l2camera.cpp \
-    v4l2param.cpp
+    v4l2param.cpp \
+    yolov5.cpp
 
 HEADERS += \
     imageprocess.h \
     mainwindow.h \
     settingdialog.h \
     v4l2camera.h \
-    v4l2param.h
+    v4l2param.h \
+    yolov5.h
 
 FORMS += \
         mainwindow.ui \
@@ -46,7 +48,7 @@ LIBYUV_PATH = /home/eigen/MySpace/3rdPartyLibrary/libyuv
 INCLUDEPATH += $$LIBYUV_PATH/include
 LIBS += -L$$LIBYUV_PATH/lib -lyuv -ljpeg
 #opencv
-OPENCV_PATH = /home/eigen/MySpace/3rdPartyLibrary/opencv45
+OPENCV_PATH = /home/eigen/MySpace/3rdPartyLibrary/opencv452
 INCLUDEPATH += $$OPENCV_PATH/include/opencv4
 LIBS += -L$$OPENCV_PATH/lib -lopencv_calib3d \
                             -lopencv_core \
@@ -63,3 +65,11 @@ LIBS += -L$$OPENCV_PATH/lib -lopencv_calib3d \
                             -lopencv_stitching \
                             -lopencv_video \
                             -lopencv_videoio
+
+
+
+# ncnn
+NCNN_PATH = /home/eigen/MySpace/3rdPartyLibrary/ncnn
+INCLUDEPATH += $$NCNN_PATH/include/ncnn
+LIBS += -L$$NCNN_PATH/lib -lncnn
+

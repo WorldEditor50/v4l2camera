@@ -2,9 +2,9 @@
 
 ## Requriements
 - libyuv
-- opencv (optional)
-
+- opencv
+- ncnn
 ## capabilities
 - adjust camera paramemter (brightness, exposure, saturation, white balance etc)
 - image processing with opencv
-- snip image
+- object detection with yolov5

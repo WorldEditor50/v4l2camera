@@ -24,10 +24,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
             this, &MainWindow::updateResolution);
 
-
     /* process */
     camera->setProcessFunc([this](unsigned char* data, int width, int height){
-        QImage img = Imageprocess::laplace(width, height, data);
+        QImage img = Imageprocess::yolov5(width, height, data);
         //QImage img(data, width, height, QImage::Format_ARGB32);
         emit sendImage(img);
     });
