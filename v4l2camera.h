@@ -119,6 +119,11 @@ public:
         unsigned int width;
         unsigned int height;
     };
+    struct Buffer {
+        unsigned char *ptr;
+        unsigned long size;
+    };
+
     class Format
     {
     public:
@@ -148,8 +153,8 @@ protected:
     QVector<Format> formatList;
     QString formatDesc;
     QAtomicInt isRunning;
-    Image sharedMemory[mmapBlockCount];
-    Image images[mmapBlockCount];
+    Buffer sharedMemory[mmapBlockCount];
+    Buffer images[mmapBlockCount];
     QFuture<void> future;
     V4l2Param param;
     ProcessFunc processImage;
@@ -159,7 +164,13 @@ public:
         formatDesc(FORMAT_JPEG), isRunning(0),
         processImage([](unsigned char* data, int width, int height) {
             QImage(data, width, height, QImage::Format_ARGB32);
-        }) {}
+        })
+    {
+        for (int i = 0; i < mmapBlockCount; i++) {
+            images[i].ptr = nullptr;
+            images[i].size = 0;
+        }
+    }
     ~V4l2Camera();
     static QStringList findDevice(const QString &key, const std::function<bool(const QString &, const QString &)> &func);
     static QStringList findAllDevice();
@@ -247,7 +258,7 @@ protected:
     }
     /* sample */
     void process(int index, int size_);
-    void doSample();
+    void sampling();
     bool startSample();
     bool stopSample();
 };

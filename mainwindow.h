@@ -30,6 +30,7 @@ private:
     Ui::MainWindow *ui;
     V4l2Camera *camera;
     SettingDialog *dialog;
+    QString methodName;
 };
 
 #endif // MAINWINDOW_H

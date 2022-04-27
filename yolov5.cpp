@@ -1,38 +1,35 @@
 #include "yolov5.h"
 
-std::vector<std::string> Yolov5::labels = {
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-    "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-    "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-    "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-    "hair drier", "toothbrush"
-};
+Yolov5::Yolov5()
+{
+    labels = {
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+        "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+        "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+        "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+        "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+        "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
+        "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+        "hair drier", "toothbrush"
+    };
+}
 
 bool Yolov5::load(const std::string &paramFile, const std::string &binFile)
 {
     if (paramFile.empty() || binFile.empty()) {
         return false;
     }
-    yolov5.opt.use_vulkan_compute = true;
-    int ret = yolov5.load_param(paramFile.c_str());
-    if (ret != 0) {
-        return false;
-    }
-    ret = yolov5.load_model(binFile.c_str());
-    if (ret != 0) {
-        return false;
-    }
+    yolov5.opt.use_vulkan_compute = false;
+    yolov5.load_param(paramFile.c_str());
+    yolov5.load_model(binFile.c_str());
     return true;
 }
 
-int Yolov5::detect(const cv::Mat &bgr, std::vector<Yolov5::Object> &objects)
+int Yolov5::detect(const cv::Mat &image, std::vector<Yolov5::Object> &objects)
 {
-    int img_w = bgr.cols;
-    int img_h = bgr.rows;
+    int img_w = image.cols;
+    int img_h = image.rows;
 
     // letterbox pad to multiple of MAX_STRIDE
     int w = img_w;
@@ -48,8 +45,8 @@ int Yolov5::detect(const cv::Mat &bgr, std::vector<Yolov5::Object> &objects)
         w = w * scale;
     }
 
-    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data,
-                                                 ncnn::Mat::PIXEL_BGR2RGB,
+    ncnn::Mat in = ncnn::Mat::from_pixels_resize(image.data,
+                                                 ncnn::Mat::PIXEL_RGBA2RGB,
                                                  img_w, img_h, w, h);
 
     // pad to target_size rectangle
@@ -59,9 +56,10 @@ int Yolov5::detect(const cv::Mat &bgr, std::vector<Yolov5::Object> &objects)
     ncnn::Mat in_pad;
     ncnn::copy_make_border(in, in_pad, hpad / 2, hpad - hpad / 2, wpad / 2, wpad - wpad / 2, ncnn::BORDER_CONSTANT, 114.f);
 
-    const float norm_vals[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
+    const float mean[3] = {0.485*255, 0.456*255, 0.406*255};
+    const float std[3] = {1.f/(0.229*255), 1.f/(0.224*255), 1.f/(0.225*255)};
+    const float norm_vals[3] = {1.f/255, 1.f/255, 1.f/255};
     in_pad.substract_mean_normalize(0, norm_vals);
-
     ncnn::Extractor ex = yolov5.create_extractor();
 
     ex.input("images", in_pad);
@@ -176,7 +174,7 @@ void Yolov5::draw(cv::Mat &image, const std::vector<Yolov5::Object> &objects)
         fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
                 obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
-        cv::rectangle(image, obj.rect, cv::Scalar(0, 255, 0), 8);
+        cv::rectangle(image, obj.rect, cv::Scalar(0, 255, 0), 2);
 
         char text[256];
         sprintf(text, "%s %.1f%%", Yolov5::labels[obj.label].c_str(), obj.prob * 100);
@@ -202,22 +200,22 @@ void Yolov5::draw(cv::Mat &image, const std::vector<Yolov5::Object> &objects)
     return;
 }
 
-void Yolov5::qsort_descent_inplace(std::vector<Object>& faceobjects, int left, int right)
+void Yolov5::qsort_descent_inplace(std::vector<Object>& objects, int left, int right)
 {
     int i = left;
     int j = right;
-    float p = faceobjects[(left + right) / 2].prob;
+    float p = objects[(left + right) / 2].prob;
 
     while (i <= j) {
-        while (faceobjects[i].prob > p)
+        while (objects[i].prob > p)
             i++;
 
-        while (faceobjects[j].prob < p)
+        while (objects[j].prob < p)
             j--;
 
         if (i <= j) {
             // swap
-            std::swap(faceobjects[i], faceobjects[j]);
+            std::swap(objects[i], objects[j]);
             i++;
             j--;
         }
@@ -227,22 +225,22 @@ void Yolov5::qsort_descent_inplace(std::vector<Object>& faceobjects, int left, i
     {
         #pragma omp section
         {
-            if (left < j) qsort_descent_inplace(faceobjects, left, j);
+            if (left < j) qsort_descent_inplace(objects, left, j);
         }
         #pragma omp section
         {
-            if (i < right) qsort_descent_inplace(faceobjects, i, right);
+            if (i < right) qsort_descent_inplace(objects, i, right);
         }
     }
     return;
 }
 
-void Yolov5::qsort_descent_inplace(std::vector<Object>& faceobjects)
+void Yolov5::qsort_descent_inplace(std::vector<Object>& objects)
 {
-    if (faceobjects.empty()) {
+    if (objects.empty()) {
         return;
     }
-    qsort_descent_inplace(faceobjects, 0, faceobjects.size() - 1);
+    qsort_descent_inplace(objects, 0, objects.size() - 1);
     return;
 }
 
@@ -327,23 +325,23 @@ void Yolov5::generate_proposals(const ncnn::Mat &anchors, int stride, const ncnn
     return;
 }
 
-void Yolov5::nms_sorted_bboxes(const std::vector<Yolov5::Object> &faceobjects, std::vector<int> &picked, float nms_threshold)
+void Yolov5::nms_sorted_bboxes(const std::vector<Yolov5::Object> &objects, std::vector<int> &picked, float nms_threshold)
 {
     picked.clear();
 
-    const int n = faceobjects.size();
+    const int n = objects.size();
 
     std::vector<float> areas(n);
     for (int i = 0; i < n; i++) {
-        areas[i] = faceobjects[i].rect.area();
+        areas[i] = objects[i].rect.area();
     }
 
     for (int i = 0; i < n; i++) {
-        const Object& a = faceobjects[i];
+        const Object& a = objects[i];
 
         int keep = 1;
         for (int j = 0; j < (int)picked.size(); j++) {
-            const Object& b = faceobjects[picked[j]];
+            const Object& b = objects[picked[j]];
 
             // intersection over union
             float inter_area = intersection_area(a, b);

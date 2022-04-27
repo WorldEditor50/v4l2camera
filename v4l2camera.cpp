@@ -4,6 +4,11 @@ int V4l2Camera::maxDeviceNum = 8;
 V4l2Camera::~V4l2Camera()
 {
     clear();
+    for (int i = 0; i < mmapBlockCount; i++) {
+        delete [] images[i].ptr;
+        images[i].ptr = nullptr;
+        images[i].size = 0;
+    }
 }
 QString V4l2Camera::executeCmd(const QString& cmd)
 {
@@ -211,9 +216,7 @@ void V4l2Camera::start(const QString &format, const QString &res)
 
 void V4l2Camera::restart(const QString &format, const QString &res)
 {
-    if (isRunning.load()) {
-        stopSample();
-    }
+    stopSample();
     /* clear */
     closeDevice();
     start(format, res);
@@ -222,9 +225,7 @@ void V4l2Camera::restart(const QString &format, const QString &res)
 
 void V4l2Camera::clear()
 {
-    if (isRunning.load()) {
-        stopSample();
-    }
+    stopSample();
     /* clear */
     closeDevice();
     formatList.clear();
@@ -239,15 +240,19 @@ void V4l2Camera::process(int index, int size_)
     }
     int width = param.width;
     int height = param.height;
+    int widthStep = (width*4 + 3)/4*4;
+    unsigned long size = widthStep*height;
     if (images[index].ptr == nullptr) {
-        images[index] = Image(width, height, 4);
+        images[index].ptr = new unsigned char[size];
+        images[index].size = size;
     } else {
-        if (images[index].size_ < width * height * 4) {
-            images[index].clear();
-            images[index] = Image(width, height, 4);
+        if (images[index].size < size) {
+            delete [] images[index].ptr;
+            images[index].ptr = new unsigned char[size];
+            images[index].size = size;
         }
     }
-    memset(images[index].ptr, 0, images[index].size_);
+    memset(images[index].ptr, 0, images[index].size);
     /* set format */
     if (formatDesc == FORMAT_JPEG) {
         libyuv::MJPGToARGB((const uint8*)sharedMemory[index].ptr, size_,
@@ -267,7 +272,7 @@ void V4l2Camera::process(int index, int size_)
     return;
 }
 
-void V4l2Camera::doSample()
+void V4l2Camera::sampling()
 {
     while (isRunning.load()) {
         fd_set fds;
@@ -667,7 +672,7 @@ bool V4l2Camera::attachSharedMemory()
             fd = -1;
             return false;
         }
-        sharedMemory[i].size_ = buf.length;
+        sharedMemory[i].size = buf.length;
         sharedMemory[i].ptr = (unsigned char *)mmap(NULL,
                                         buf.length,
                                         PROT_READ | PROT_WRITE,
@@ -699,7 +704,7 @@ bool V4l2Camera::attachSharedMemory()
 void V4l2Camera::dettachSharedMemory()
 {
     for (int i = 0; i < mmapBlockCount; i++) {
-        if (munmap(sharedMemory[i].ptr, sharedMemory[i].size_) == -1) {
+        if (munmap(sharedMemory[i].ptr, sharedMemory[i].size) == -1) {
             qDebug()<<"Failed to munmap";
         }
         sharedMemory[i].ptr = nullptr;
@@ -717,18 +722,21 @@ bool V4l2Camera::startSample()
     }
     /* start thread */
     isRunning.store(1);
-    future = QtConcurrent::run(this, &V4l2Camera::doSample);
+    future = QtConcurrent::run(this, &V4l2Camera::sampling);
     return true;
 }
 
 bool V4l2Camera::stopSample()
 {
-    isRunning.store(0);
-    future.waitForFinished();
     v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
         qDebug()<<"Fail to ioctl VIDIOC_STREAMOFF";
         return false;
+    }
+    if (isRunning.load()) {
+        isRunning.store(0);
+        QThread::msleep(500);
+        future.waitForFinished();
     }
     return true;
 }

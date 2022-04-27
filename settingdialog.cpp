@@ -52,6 +52,10 @@ SettingDialog::SettingDialog(V4l2Camera *camera_, QWidget *parent) :
             camera, &V4l2Camera::setFrequency);
     /* set default */
     connect(ui->defaultBtn, &QPushButton::clicked, this, &SettingDialog::setDefault);
+    /* dump default parameters */
+    if (QDir(".").exists("camera_default_params.xml") == false) {
+        camera->saveParams("camera_default_params.xml");
+    }
 }
 
 SettingDialog::~SettingDialog()
@@ -61,7 +65,7 @@ SettingDialog::~SettingDialog()
 
 void SettingDialog::setDefault()
 {
-    camera->setDefaultParam();
+    camera->loadParams("camera_default_params.xml");
     updateParam();
 }
 

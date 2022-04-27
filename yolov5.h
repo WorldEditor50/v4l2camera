@@ -30,7 +30,7 @@ public:
     };
 
 public:
-    Yolov5(){}
+    Yolov5();
     static Yolov5& instance()
     {
         static Yolov5 yolov5;
@@ -62,7 +62,7 @@ private:
                            std::vector<int>& picked,
                            float nms_threshold);
 public:
-    static std::vector<std::string> labels;
+    std::vector<std::string> labels;
 private:
     constexpr static int target_size = 640;
     constexpr static float prob_threshold = 0.25f;

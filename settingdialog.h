@@ -16,8 +16,8 @@ public:
     explicit SettingDialog(V4l2Camera *camera_, QWidget *parent = nullptr);
     ~SettingDialog();
     void updateParam();
-public:
     void setDefault();
+    void dumpParam();
 private:
     Ui::SettingDialog *ui;
     V4l2Camera *camera;

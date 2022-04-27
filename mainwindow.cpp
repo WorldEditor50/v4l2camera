@@ -4,7 +4,8 @@
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    ui(new Ui::MainWindow),
+    methodName("none")
 {
     ui->setupUi(this);
     setWindowFlag(Qt::WindowMinMaxButtonsHint);
@@ -23,11 +24,17 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->resolutionComboBox->addItems(camera->getResolutionList());
     connect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
             this, &MainWindow::updateResolution);
-
     /* process */
+    ui->methodComboBox->addItems(QStringList{"none", "canny", "laplace", "yolov5"});
+    connect(ui->methodComboBox, &QComboBox::currentTextChanged,
+            this, [=](const QString &name){methodName = name;});
+    methodName = "yolov5";
+    ui->methodComboBox->setCurrentText(methodName);
     camera->setProcessFunc([this](unsigned char* data, int width, int height){
-        QImage img = Imageprocess::yolov5(width, height, data);
-        //QImage img(data, width, height, QImage::Format_ARGB32);
+        QImage img = Imageprocess::instance().invoke(methodName)(width, height, data);
+        if (img.isNull()) {
+            return;
+        }
         emit sendImage(img);
     });
     if (ui->deviceComboBox->currentText().isEmpty() ||
@@ -54,7 +61,7 @@ void MainWindow::updateImage(const QImage &img)
         qDebug()<<"invalid image";
         return;
     }
-    QPixmap pixmap = QPixmap::fromImage(img);
+    QPixmap pixmap = QPixmap::fromImage(img.scaled(ui->cameralabel->size()));
     ui->cameralabel->setPixmap(pixmap);
     return;
 }

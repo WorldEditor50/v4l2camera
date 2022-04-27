@@ -1,9 +1,7 @@
 #include "imageprocess.h"
 #include <QDebug>
 
-int Imageprocess::steps = 0;
-
-QImage Imageprocess::fromMat(const cv::Mat &src)
+QImage Imageprocess::mat2QImage(const cv::Mat &src)
 {
     QImage img;
     int channel = src.channels();
@@ -27,7 +25,7 @@ QImage Imageprocess::fromMat(const cv::Mat &src)
     return img;
 }
 
-QImage Imageprocess::invoke(int width, int height, unsigned char *data)
+QImage Imageprocess::canny(int width, int height, unsigned char *data)
 {
     if (data == nullptr) {
         return QImage();
@@ -36,7 +34,7 @@ QImage Imageprocess::invoke(int width, int height, unsigned char *data)
     cv::cvtColor(src, src, cv::COLOR_RGBA2GRAY);
     cv::blur(src, src, cv::Size(3, 3));
     cv::Canny(src, src, 60, 120);
-    return fromMat(src);
+    return mat2QImage(src);
 }
 
 QImage Imageprocess::laplace(int width, int height, unsigned char *data)
@@ -51,7 +49,7 @@ QImage Imageprocess::laplace(int width, int height, unsigned char *data)
     cv::Laplacian(gray, filterImg, CV_16S, 3);
     cv::Mat dst;
     cv::convertScaleAbs(filterImg, dst);
-    return fromMat(dst);
+    return mat2QImage(dst);
 }
 
 QImage Imageprocess::yolov5(int width, int height, unsigned char *data)
@@ -59,9 +57,8 @@ QImage Imageprocess::yolov5(int width, int height, unsigned char *data)
     cv::Mat src(height, width, CV_8UC4, data);
     std::vector<Yolov5::Object> objects;
     Yolov5::instance().detect(src, objects);
-    qDebug()<<"objects count:"<<objects.size();
     Yolov5::instance().draw(src, objects);
-    return fromMat(src);
+    return mat2QImage(src);
 }
 
 
