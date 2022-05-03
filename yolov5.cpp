@@ -1,4 +1,5 @@
 #include "yolov5.h"
+#include "cpu.h"
 
 Yolov5::Yolov5()
 {
@@ -13,16 +14,40 @@ Yolov5::Yolov5()
         "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
         "hair drier", "toothbrush"
     };
+    target_size = 640;
+    prob_threshold = 0.25f;
+    nms_threshold = 0.45f;
+    /* memory pool */
+    blob_pool_allocator.set_size_compare_ratio(0.f);
+    workspace_pool_allocator.set_size_compare_ratio(0.f);
+    blob_pool_allocator.clear();
+    workspace_pool_allocator.clear();
+    yolov5.opt.blob_allocator = &blob_pool_allocator;
+    yolov5.opt.workspace_allocator = &workspace_pool_allocator;
+    /* optimization */
+    yolov5.opt.use_vulkan_compute = false;
+    ncnn::set_cpu_powersave(2);
+    ncnn::set_omp_num_threads(ncnn::get_big_cpu_count());
+    yolov5.opt = ncnn::Option();
+    yolov5.opt.num_threads = ncnn::get_big_cpu_count();
 }
 
-bool Yolov5::load(const std::string &paramFile, const std::string &binFile)
+bool Yolov5::load(const std::string &modelType)
 {
-    if (paramFile.empty() || binFile.empty()) {
+    if (modelType.empty()) {
         return false;
     }
-    yolov5.opt.use_vulkan_compute = false;
-    yolov5.load_param(paramFile.c_str());
-    yolov5.load_model(binFile.c_str());
+    std::string paramFile = modelType + ".param";
+    std::string modelFile = modelType + ".bin";
+    /* load model */
+    int ret = yolov5.load_param(paramFile.c_str());
+    if (ret != 0) {
+        return false;
+    }
+    ret = yolov5.load_model(modelFile.c_str());
+    if (ret != 0) {
+        return false;
+    }
     return true;
 }
 
@@ -54,12 +79,16 @@ int Yolov5::detect(const cv::Mat &image, std::vector<Yolov5::Object> &objects)
     int wpad = (w + MAX_STRIDE - 1) / MAX_STRIDE * MAX_STRIDE - w;
     int hpad = (h + MAX_STRIDE - 1) / MAX_STRIDE * MAX_STRIDE - h;
     ncnn::Mat in_pad;
-    ncnn::copy_make_border(in, in_pad, hpad / 2, hpad - hpad / 2, wpad / 2, wpad - wpad / 2, ncnn::BORDER_CONSTANT, 114.f);
+    ncnn::copy_make_border(in, in_pad,
+                           hpad / 2, hpad - hpad / 2,
+                           wpad / 2, wpad - wpad / 2,
+                           ncnn::BORDER_CONSTANT, 114.f);
 
-    const float mean[3] = {0.485*255, 0.456*255, 0.406*255};
-    const float std[3] = {1.f/(0.229*255), 1.f/(0.224*255), 1.f/(0.225*255)};
+    //const float mean[3] = {0.485*255, 0.456*255, 0.406*255};
+    //const float std[3] = {1.f/(0.229*255), 1.f/(0.224*255), 1.f/(0.225*255)};
+    const float mean_vals[3] = {0, 0, 0};
     const float norm_vals[3] = {1.f/255, 1.f/255, 1.f/255};
-    in_pad.substract_mean_normalize(0, norm_vals);
+    in_pad.substract_mean_normalize(mean_vals, norm_vals);
     ncnn::Extractor ex = yolov5.create_extractor();
 
     ex.input("images", in_pad);
@@ -180,7 +209,7 @@ void Yolov5::draw(cv::Mat &image, const std::vector<Yolov5::Object> &objects)
         sprintf(text, "%s %.1f%%", Yolov5::labels[obj.label].c_str(), obj.prob * 100);
 
         int baseLine = 0;
-        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 1, 1, &baseLine);
 
         int x = obj.rect.x;
         int y = obj.rect.y - label_size.height - baseLine;
@@ -191,11 +220,11 @@ void Yolov5::draw(cv::Mat &image, const std::vector<Yolov5::Object> &objects)
             x = image.cols - label_size.width;
         }
 
-        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                      cv::Scalar(0, 0, 0));
+//        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+//                      cv::Scalar(0, 255, 0), 2);
 
         cv::putText(image, text, cv::Point(x, y + label_size.height),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+                    cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
     }
     return;
 }

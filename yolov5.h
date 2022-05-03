@@ -28,15 +28,23 @@ public:
         int label;
         float prob;
     };
-
 public:
-    Yolov5();
+    std::vector<std::string> labels;
+    ncnn::Mutex lock;
+    int target_size;
+    float prob_threshold;
+    float nms_threshold;
+private:
+    ncnn::Net yolov5;
+    ncnn::UnlockedPoolAllocator blob_pool_allocator;
+    ncnn::PoolAllocator workspace_pool_allocator;
+public:
     static Yolov5& instance()
     {
         static Yolov5 yolov5;
         return yolov5;
     }
-    bool load(const std::string &paramFile, const std::string &binFile);
+    bool load(const std::string &modelType);
     int detect(const cv::Mat& bgr, std::vector<Object>& objects);
     void draw(cv::Mat &bgr, const std::vector<Object>& objects);
 private:
@@ -49,25 +57,19 @@ private:
         cv::Rect_<float> inter = a.rect & b.rect;
         return inter.area();
     }
-    void qsort_descent_inplace(std::vector<Object>& faceobjects,
-                               int left, int right);
-    void qsort_descent_inplace(std::vector<Object>& faceobjects);
-    void generate_proposals(const ncnn::Mat& anchors,
-                           int stride,
-                           const ncnn::Mat& in_pad,
-                           const ncnn::Mat& feat_blob,
-                           float prob_threshold,
-                           std::vector<Object>& objects);
-    void nms_sorted_bboxes(const std::vector<Object>& faceobjects,
-                           std::vector<int>& picked,
-                           float nms_threshold);
-public:
-    std::vector<std::string> labels;
+    static void qsort_descent_inplace(std::vector<Object>& objects, int left, int right);
+    static void qsort_descent_inplace(std::vector<Object>& objects);
+    static void generate_proposals(const ncnn::Mat& anchors,
+                                   int stride,
+                                   const ncnn::Mat& in_pad,
+                                   const ncnn::Mat& feat_blob,
+                                   float prob_threshold,
+                                   std::vector<Object>& objects);
+    static void nms_sorted_bboxes(const std::vector<Object>& objects,
+                                  std::vector<int>& picked,
+                                  float nms_threshold);
 private:
-    constexpr static int target_size = 640;
-    constexpr static float prob_threshold = 0.25f;
-    constexpr static float nms_threshold = 0.45f;
-    ncnn::Net yolov5;
+    Yolov5();
 };
 
 #endif // YOLOV5_H

@@ -55,10 +55,13 @@ QImage Imageprocess::laplace(int width, int height, unsigned char *data)
 QImage Imageprocess::yolov5(int width, int height, unsigned char *data)
 {
     cv::Mat src(height, width, CV_8UC4, data);
-    std::vector<Yolov5::Object> objects;
-    Yolov5::instance().detect(src, objects);
-    Yolov5::instance().draw(src, objects);
-    return mat2QImage(src);
+    {
+        ncnn::MutexLockGuard guard(Yolov5::instance().lock);
+        std::vector<Yolov5::Object> objects;
+        Yolov5::instance().detect(src, objects);
+        Yolov5::instance().draw(src, objects);
+    }
+    return QImage(data, width, height, QImage::Format_ARGB32);
 }
 
 
