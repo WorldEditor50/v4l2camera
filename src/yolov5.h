@@ -1,8 +1,8 @@
 #ifndef YOLOV5_H
 #define YOLOV5_H
 
-#include "layer.h"
-#include "net.h"
+#include "ncnn/layer.h"
+#include "ncnn/net.h"
 
 #if defined(USE_NCNN_SIMPLEOCV)
 #include "simpleocv.h"

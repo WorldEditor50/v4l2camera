@@ -1,5 +1,5 @@
 #include "yolov5.h"
-#include "cpu.h"
+#include "ncnn/cpu.h"
 
 Yolov5::Yolov5()
 {
@@ -71,7 +71,7 @@ int Yolov5::detect(const cv::Mat &image, std::vector<Yolov5::Object> &objects)
     }
 
     ncnn::Mat in = ncnn::Mat::from_pixels_resize(image.data,
-                                                 ncnn::Mat::PIXEL_RGBA2RGB,
+                                                 ncnn::Mat::PIXEL_RGB,
                                                  img_w, img_h, w, h);
 
     // pad to target_size rectangle
@@ -224,7 +224,7 @@ void Yolov5::draw(cv::Mat &image, const std::vector<Yolov5::Object> &objects)
 //                      cv::Scalar(0, 255, 0), 2);
 
         cv::putText(image, text, cv::Point(x, y + label_size.height),
-                    cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                    cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 255, 255), 2);
     }
     return;
 }

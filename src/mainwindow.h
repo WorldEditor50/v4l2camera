@@ -2,8 +2,9 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QCloseEvent>
 #include <QPixmap>
-#include "v4l2camera.h"
+#include "camera/camera.h"
 #include "imageprocess.h"
 #include "settingdialog.h"
 
@@ -22,13 +23,15 @@ signals:
     void sendImage(const QImage &img);
 public slots:
     void updateImage(const QImage &img);
-    void enumDevice();
-    void updateDevice(const QString &path);
-    void updateFormat(const QString &format);
-    void updateResolution(const QString &res);
+    void enumerateDevice();
+    void onDeviceChanged(const QString &path);
+    void onPixelFormatChanged(const QString &format);
+    void onResolutionChanged(const QString &res);
+protected:
+    void closeEvent(QCloseEvent *ev) override;
 private:
     Ui::MainWindow *ui;
-    V4l2Camera *camera;
+    Camera *camera;
     SettingDialog *dialog;
     QString methodName;
 };
