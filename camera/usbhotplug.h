@@ -23,10 +23,15 @@ public:
         ACTION_DEVICE_DETACHED
     };
     using FnNotify = std::function<void(int action)>;
+    struct Device {
+        int flag;
+        FnNotify notify;
+    };
+
 protected:
     int fd;
     int state;
-    std::map<std::string, FnNotify> notifyMap;
+    std::map<std::string, Device> deviceMap;
     std::mutex mutex;
     std::condition_variable condit;
     std::thread listenThread;

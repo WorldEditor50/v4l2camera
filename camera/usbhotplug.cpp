@@ -51,16 +51,18 @@ void UsbHotplug::run()
         if (action == ACTION_NONE) {
             continue;
         }
-        if (notifyMap.empty()) {
+        if (deviceMap.empty()) {
             continue;
         }
-        for (auto &x : notifyMap) {
+        for (auto &x : deviceMap) {
             if (message.find(x.first) != message.npos) {
-                x.second(action);
+                if (x.second.flag != action) {
+                    x.second.flag = action;
+                    x.second.notify(action);
+                }
                 break;
             }
         }
-
     }
     std::cout<<"leave listen thread."<<std::endl;
     return;
@@ -77,7 +79,10 @@ void UsbHotplug::registerDevice(const std::string &vidpid, const UsbHotplug::FnN
     /*
         vidpid: 093A:2510
     */
-    notifyMap.insert(std::pair<std::string, FnNotify>(vidpid, func));
+    Device dev;
+    dev.flag = ACTION_NONE;
+    dev.notify = func;
+    deviceMap.insert(std::pair<std::string, Device>(vidpid, dev));
     return;
 }
 
