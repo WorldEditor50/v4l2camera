@@ -3,7 +3,7 @@
 #include <string>
 #include <cstring>
 #include <vector>
-
+#include <stdarg.h>
 struct Strings {
 
     static std::string format(int totalsize, const char *formatText, ...)

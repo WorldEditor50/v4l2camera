@@ -25,6 +25,7 @@ public:
     using FnNotify = std::function<void(int action)>;
     struct Device {
         int flag;
+        std::string token;
         FnNotify notify;
     };
 

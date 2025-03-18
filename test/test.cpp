@@ -5,7 +5,7 @@
 void test_usbhotplug()
 {
     UsbHotplug hotplug;
-    hotplug.registerDevice("093A:2510", [](int action) {
+    hotplug.registerDevice("1C4F:0043", [](int action) {
         if (action == UsbHotplug::ACTION_DEVICE_ATTACHED) {
             std::cout<<"device arrived."<<std::endl;
         } else if (action == UsbHotplug::ACTION_DEVICE_DETACHED) {
