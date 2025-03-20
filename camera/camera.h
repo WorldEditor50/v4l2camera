@@ -40,6 +40,34 @@ public:
         CODE_DEV_OPENFAILED = -3
     };
 
+    enum ParamFlag {
+        Param_Auto = 0,
+        Param_Manual
+    };
+
+    struct Param {
+        int minVal;
+        int maxVal;
+        int value;
+        int defaultVal;
+        int flag;
+    };
+
+    struct Params {
+        Param whiteBalance;
+        Param brightness;
+        Param contrast;
+        Param saturation;
+        Param hue;
+        Param sharpness;
+        Param backlightCompensation;
+        Param gamma;
+        Param exposure;
+        Param gain;
+        Param powerLineFrequence;
+
+    };
+
     struct DeviceParam {
         int whiteBalanceMode;
         int whiteBalanceTemperature;
@@ -57,9 +85,62 @@ public:
         int gain;
         int powerLineFrequence;
     };
-    struct Frame {
+    class Frame
+    {
+    public:
         unsigned char* data;
-        std::size_t length;
+        unsigned long length;
+        unsigned long capacity;
+    public:
+        static unsigned long align(unsigned long s)
+        {
+            unsigned long size = s;
+            if (size&0x3ff) {
+                size = ((size >> 10) + 1)<<10;
+            }
+            return size;
+        }
+
+        Frame():data(nullptr), length(0), capacity(0){}
+
+        ~Frame(){}
+
+        void allocate(unsigned long size)
+        {
+            if (data == nullptr) {
+                capacity = align(size);
+                length = size;
+                data = new unsigned char[capacity];
+            } else {
+                if (size > capacity) {
+                    delete [] data;
+                    capacity = align(size);
+                    length = size;
+                    data = new unsigned char[capacity];
+                } else {
+                    length = size;
+                }
+            }
+            return;
+        }
+
+        void copy(unsigned char *d, unsigned long s)
+        {
+            allocate(s);
+            memcpy(data, d, length);
+            return;
+        }
+
+        void clear()
+        {
+            if (data) {
+                delete [] data;
+                data = nullptr;
+            }
+            length = 0;
+            capacity = 0;
+            return;
+        }
     };
     struct Property {
         std::string path;
@@ -71,18 +152,22 @@ public:
         unsigned int formatInt;
     };
     using FnProcessImage = std::function<void(int, int, int, unsigned char*)>;
-    static constexpr int mmapBlockCount = 8;
+    static constexpr int mmapBlockCount = 4;
 protected:
     /* device */
     int fd;
     std::string devPath;
     /* sample */
     int sampleTimeout;
+    int in;
+    int out;
     std::atomic<int> isRunning;
-    Frame frameBuffer[mmapBlockCount];
-    Frame sharedMemFrame[mmapBlockCount];
+    Frame frameBuffer[2];
+    Frame outputFrame[2];
+    Frame sharedMem[mmapBlockCount];
     FnProcessImage processImage;
     std::thread sampleThread;
+    std::thread processThread;
     /* camera property */
     int width;
     int height;
@@ -95,7 +180,8 @@ protected:
     static unsigned short getProductID(const char* name);
     static int openDevice(const std::string &path);
     void process(Frame &frame, Frame &sharedMem, int size_);
-    void run();
+    void onSample();
+    void onProcess();
     /* shared memory */
     bool attachSharedMemory();
     void dettachSharedMemory();

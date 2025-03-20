@@ -3,71 +3,21 @@
 #include <algorithm>
 
 Camera::Camera()
-    :fd(-1),
-      sampleTimeout(5),
-      isRunning(0),
-      formatString(CAMERA_PIXELFORMAT_JPEG)
+    :fd(-1),sampleTimeout(5),isRunning(0),in(0),out(0),
+    formatString(CAMERA_PIXELFORMAT_JPEG)
 {
-    for (int i = 0; i < mmapBlockCount; i++) {
-        frameBuffer[i].data = nullptr;
-        frameBuffer[i].length = 0;
-        sharedMemFrame[i].data = nullptr;
-        sharedMemFrame[i].length = 0;
-    }
+
 }
 
 Camera::~Camera()
 {
-    /* image memory */
-    for (int i = 0; i < mmapBlockCount; i++) {
-        if (frameBuffer[i].data != nullptr) {
-            delete [] frameBuffer[i].data;
-            frameBuffer[i].data = nullptr;
-            frameBuffer[i].length = 0;
-        }
+    for (int i = 0; i < 2; i++) {
+        frameBuffer[i].clear();
+        outputFrame[i].clear();
     }
 }
 
-void Camera::process(Frame &frame, Frame &sharedMem, int size_)
-{
-    unsigned long len = width * height * 4;
-    if (formatString == CAMERA_PIXELFORMAT_JPEG) {
-        len = Jpeg::align4(width, 3)*height;
-    } else if (formatString == CAMERA_PIXELFORMAT_YUYV) {
-        len = width * height * 4;
-    }
-    /* allocate memory for image */
-    if (frame.data == nullptr) {
-        frame.data = new unsigned char[len];
-        frame.length = len;
-    } else {
-        if (frame.length < len) {
-            delete [] frame.data;
-            frame.data = new unsigned char[len];
-            frame.length = len;
-        }
-    }
-    memset(frame.data, 0, frame.length);
-    /* set format */
-    if (formatString == CAMERA_PIXELFORMAT_JPEG) {
-        //libyuv::MJPGToARGB(sharedMemoryPtr, size_, frame.data, width * 4,
-                //width, height, width, height);
-        Jpeg::decode(frame.data, width, height, sharedMem.data, size_, Jpeg::ALIGN_4);
-        /* process */
-        processImage(height, width, 3, frame.data);
-    } else if(formatString == CAMERA_PIXELFORMAT_YUYV) {
-        int alignedWidth = (width + 1) & ~1;
-        libyuv::YUY2ToARGB(sharedMem.data, alignedWidth * 2,
-                frame.data, width * 4,
-                width, height);
-        processImage(height, width, 4, frame.data);
-    } else {
-        printf("decode failed. format: %s", formatString.c_str());
-    }
-    return;
-}
-
-void Camera::run()
+void Camera::onSample()
 {
     printf("enter sampling function.\n");
     while (isRunning.load()) {
@@ -99,15 +49,53 @@ void Camera::run()
             perror("0 Fail to ioctl 'VIDIOC_DQBUF'");
             continue;
         }
-        /* process */
-        int i = buf.index;
-        process(frameBuffer[i], sharedMemFrame[i], buf.bytesused);
+        /* copy */
+        frameBuffer[in].copy(sharedMem[buf.index].data, buf.bytesused);
+        out = in;
+        in = (in + 1)%2;
         /* dequeue */
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("0 Fail to ioctl 'VIDIOC_QBUF'");
         }
     }
     printf("leave sampling function.\n");
+    return;
+}
+
+void Camera::onProcess()
+{
+    printf("enter process function.\n");
+    while (isRunning.load()) {
+        Frame& inputFrame = frameBuffer[out];
+        if (inputFrame.data == nullptr) {
+            continue;
+        }
+        unsigned long len = width * height * 4;
+        if (formatString == CAMERA_PIXELFORMAT_JPEG) {
+            len = Jpeg::align4(width, 3)*height;
+        } else if (formatString == CAMERA_PIXELFORMAT_YUYV) {
+            len = width * height * 4;
+        }
+        /* allocate memory for image */
+        outputFrame[out].allocate(len);
+        Frame& frame = outputFrame[out];
+        /* set format */
+        if (formatString == CAMERA_PIXELFORMAT_JPEG) {
+            Jpeg::decode(frame.data, width, height, inputFrame.data, inputFrame.length, Jpeg::ALIGN_4);
+            /* process */
+            processImage(height, width, 3, frame.data);
+        } else if(formatString == CAMERA_PIXELFORMAT_YUYV) {
+            int alignedWidth = (width + 1) & ~1;
+            libyuv::YUY2ToARGB(inputFrame.data, alignedWidth * 2,
+                    frame.data, width * 4,
+                    width, height);
+            processImage(height, width, 4, frame.data);
+        } else {
+            printf("decode failed. format: %s", formatString.c_str());
+        }
+
+    }
+    printf("leave process function.\n");
     return;
 }
 
@@ -220,11 +208,11 @@ bool Camera::attachSharedMemory()
             fd = -1;
             return false;
         }
-        sharedMemFrame[i].length = buf.length;
-        sharedMemFrame[i].data = (unsigned char*)mmap(NULL, buf.length,
-                                                      PROT_READ | PROT_WRITE, MAP_SHARED,
-                                                      fd, buf.m.offset);
-        if (sharedMemFrame[i].data == MAP_FAILED) {
+        sharedMem[i].length = buf.length;
+        sharedMem[i].data = (unsigned char*)mmap(NULL, buf.length,
+                                                 PROT_READ | PROT_WRITE, MAP_SHARED,
+                                                 fd, buf.m.offset);
+        if (sharedMem[i].data == MAP_FAILED) {
             perror("Fail to mmap");
             close(fd);
             fd = -1;
@@ -250,7 +238,7 @@ bool Camera::attachSharedMemory()
 void Camera::dettachSharedMemory()
 {
     for (std::size_t i = 0; i < mmapBlockCount; i++) {
-        if (munmap(sharedMemFrame[i].data, sharedMemFrame[i].length) == -1) {
+        if (munmap(sharedMem[i].data, sharedMem[i].length) == -1) {
             perror("Fail to munmap");
         }
     }
@@ -270,7 +258,8 @@ bool Camera::startSample()
     }
     /* start thread */
     isRunning.store(1);
-    sampleThread = std::thread(&Camera::run, this);
+    sampleThread = std::thread(&Camera::onSample, this);
+    processThread = std::thread(&Camera::onProcess, this);
     return true;
 }
 
@@ -278,13 +267,13 @@ bool Camera::stopSample()
 {
     if (isRunning.load()) {
         isRunning.store(0);
-        sampleThread.join();
         v4l2_buf_type type;
         type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
             perror("Fail to ioctl 'VIDIOC_STREAMOFF'");
-            return false;
         }
+        sampleThread.join();
+        processThread.join();
     }
     return true;
 }
