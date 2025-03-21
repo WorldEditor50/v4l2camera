@@ -11,7 +11,7 @@ Camera::Camera()
 
 Camera::~Camera()
 {
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 8; i++) {
         frameBuffer[i].clear();
         outputFrame[i].clear();
     }
@@ -52,7 +52,7 @@ void Camera::onSample()
         /* copy */
         frameBuffer[in].copy(sharedMem[buf.index].data, buf.bytesused);
         out = in;
-        in = (in + 1)%2;
+        in = (in + 1)%8;
         /* dequeue */
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("0 Fail to ioctl 'VIDIOC_QBUF'");
@@ -66,19 +66,12 @@ void Camera::onProcess()
 {
     printf("enter process function.\n");
     while (isRunning.load()) {
-        Frame& inputFrame = frameBuffer[out];
+        int index = out;
+        Frame& inputFrame = frameBuffer[index];
         if (inputFrame.data == nullptr) {
             continue;
         }
-        unsigned long len = width * height * 4;
-        if (formatString == CAMERA_PIXELFORMAT_JPEG) {
-            len = Jpeg::align4(width, 3)*height;
-        } else if (formatString == CAMERA_PIXELFORMAT_YUYV) {
-            len = width * height * 4;
-        }
-        /* allocate memory for image */
-        outputFrame[out].allocate(len);
-        Frame& frame = outputFrame[out];
+        Frame& frame = outputFrame[index];
         /* set format */
         if (formatString == CAMERA_PIXELFORMAT_JPEG) {
             Jpeg::decode(frame.data, width, height, inputFrame.data, inputFrame.length, Jpeg::ALIGN_4);
@@ -177,6 +170,16 @@ bool Camera::setFormat(int w, int h, const std::string &format)
         return false;
     }
     formatString = format;
+    /* allocate memory for image */
+    unsigned long len = width * height * 4;
+    if (formatString == CAMERA_PIXELFORMAT_JPEG) {
+        len = Jpeg::align4(width, 3)*height;
+    } else if (formatString == CAMERA_PIXELFORMAT_YUYV) {
+        len = width * height * 4;
+    }
+    for (int i = 0; i < 8; i++) {
+        outputFrame[i].allocate(len);
+    }
     return true;
 }
 
@@ -596,6 +599,43 @@ void Camera::setParam(unsigned int controlID, int value)
         }
     }
     return;
+}
+
+int Camera::getParamRange(unsigned int controlID, int modeID, Param &param)
+{
+    v4l2_queryctrl queryctrl;
+    queryctrl.id = controlID;
+
+    if (ioctl(fd, VIDIOC_QUERYCTRL, &queryctrl) == -1) {
+        if (errno != EINVAL) {
+            return -1;
+        } else {
+            std::cout<<"ERROR :: Unable to get property (NOT SUPPORTED)\n";
+            return -1;
+        }
+    } else if (queryctrl.flags & V4L2_CTRL_FLAG_DISABLED) {
+        std::cout<<"ERROR :: Unable to get property (DISABLED).\n";
+        return -2;
+    }
+    struct v4l2_control ctrl;
+    ctrl.id = controlID;
+    ctrl.value = 0;
+    if (ioctl(fd, VIDIOC_G_CTRL, &ctrl) == -1) {
+        std::cout<<"Failed to get value.";
+    }
+    struct v4l2_control ctrlMode;
+    ctrlMode.id = modeID;
+    ctrlMode.value = 0;
+    if (ioctl(fd, VIDIOC_G_CTRL, &ctrlMode) == -1) {
+        std::cout<<"Failed to get control mode.";
+    }
+    param.minVal = queryctrl.minimum;
+    param.maxVal = queryctrl.maximum;
+    param.defaultVal = queryctrl.default_value;
+    param.step = queryctrl.step;
+    param.value = ctrl.value;
+    param.flag = ctrlMode.value;
+    return 0;
 }
 
 int Camera::getParam(unsigned int controlID)

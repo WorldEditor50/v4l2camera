@@ -50,6 +50,7 @@ public:
         int maxVal;
         int value;
         int defaultVal;
+        int step;
         int flag;
     };
 
@@ -147,6 +148,12 @@ public:
         unsigned short vendorID;
         unsigned short productID;
     };
+
+    enum PixelType {
+        Pixel_MJPEG = 0,
+        Pixel_YUYV
+    };
+
     struct PixelFormat {
         std::string formatString;
         unsigned int formatInt;
@@ -162,8 +169,8 @@ protected:
     int in;
     int out;
     std::atomic<int> isRunning;
-    Frame frameBuffer[2];
-    Frame outputFrame[2];
+    Frame frameBuffer[8];
+    Frame outputFrame[8];
     Frame sharedMem[mmapBlockCount];
     FnProcessImage processImage;
     std::thread sampleThread;
@@ -207,6 +214,7 @@ public:
     void restart(const std::string &format, const std::string &res);
     /* parameter */
     void setParam(unsigned int controlID, int value);
+    int getParamRange(unsigned int controlID, int modeID, Param &param);
     int getParam(unsigned int controlID);
     /* white balance */
     void setWhiteBalanceMode(int value = V4L2_WHITE_BALANCE_MANUAL);
