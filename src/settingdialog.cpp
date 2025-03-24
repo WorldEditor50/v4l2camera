@@ -9,7 +9,7 @@
 #include <QTextStream>
 #include <linux/videodev2.h>
 
-SettingDialog::SettingDialog(Camera *camera_, QWidget *parent) :
+SettingDialog::SettingDialog(Camera::Device *camera_, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::SettingDialog),
     camera(camera_)

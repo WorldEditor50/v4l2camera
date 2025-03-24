@@ -31,7 +31,7 @@ protected:
     void closeEvent(QCloseEvent *ev) override;
 private:
     Ui::MainWindow *ui;
-    Camera *camera;
+    Camera::Device *camera;
     SettingDialog *dialog;
     QString methodName;
 };

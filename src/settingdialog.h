@@ -13,7 +13,7 @@ class SettingDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit SettingDialog(Camera *camera_, QWidget *parent = nullptr);
+    explicit SettingDialog(Camera::Device *camera_, QWidget *parent = nullptr);
     ~SettingDialog();
     void saveParams(const QString &fileName);
     bool loadParams(const QString &fileName);
@@ -22,7 +22,7 @@ public:
     void dumpParam();
 private:
     Ui::SettingDialog *ui;
-    Camera *camera;
+    Camera::Device *camera;
 };
 
 #endif // SETTINGDIALOG_H

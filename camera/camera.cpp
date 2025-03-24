@@ -2,22 +2,27 @@
 #include <unistd.h>
 #include <algorithm>
 
-Camera::Camera()
-    :fd(-1),sampleTimeout(5),isRunning(0),in(0),out(0),
-    formatString(CAMERA_PIXELFORMAT_JPEG)
+Camera::Device::Device(int decodeType, const Camera::FnProcessImage &func)
+    :fd(-1),sampleTimeout(5),isRunning(0),decoder(nullptr)
 {
-
-}
-
-Camera::~Camera()
-{
-    for (int i = 0; i < 8; i++) {
-        frameBuffer[i].clear();
-        outputFrame[i].clear();
+    if (decodeType == Camera::Decode_ASYNC) {
+        decoder = new AsyncDecoder(func);
+    } else if (decodeType == Camera::Decode_PINGPONG) {
+        decoder = new PingPongDecoder(func);
+    } else {
+        decoder = new Decoder(func);
     }
 }
 
-void Camera::onSample()
+Camera::Device::~Device()
+{
+    if (decoder) {
+        delete decoder;
+        decoder = nullptr;
+    }
+}
+
+void Camera::Device::onSample()
 {
     printf("enter sampling function.\n");
     while (isRunning.load()) {
@@ -50,9 +55,7 @@ void Camera::onSample()
             continue;
         }
         /* copy */
-        frameBuffer[in].copy(sharedMem[buf.index].data, buf.bytesused);
-        out = in;
-        in = (in + 1)%8;
+        decoder->sample(sharedMem[buf.index].data, buf.bytesused);
         /* dequeue */
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("0 Fail to ioctl 'VIDIOC_QBUF'");
@@ -62,41 +65,11 @@ void Camera::onSample()
     return;
 }
 
-void Camera::onProcess()
-{
-    printf("enter process function.\n");
-    while (isRunning.load()) {
-        int index = out;
-        Frame& inputFrame = frameBuffer[index];
-        if (inputFrame.data == nullptr) {
-            continue;
-        }
-        Frame& frame = outputFrame[index];
-        /* set format */
-        if (formatString == CAMERA_PIXELFORMAT_JPEG) {
-            Jpeg::decode(frame.data, width, height, inputFrame.data, inputFrame.length, Jpeg::ALIGN_4);
-            /* process */
-            processImage(height, width, 3, frame.data);
-        } else if(formatString == CAMERA_PIXELFORMAT_YUYV) {
-            int alignedWidth = (width + 1) & ~1;
-            libyuv::YUY2ToARGB(inputFrame.data, alignedWidth * 2,
-                    frame.data, width * 4,
-                    width, height);
-            processImage(height, width, 4, frame.data);
-        } else {
-            printf("decode failed. format: %s", formatString.c_str());
-        }
-
-    }
-    printf("leave process function.\n");
-    return;
-}
-
-int Camera::openDevice(const std::string &path)
+int Camera::Device::openDevice(const std::string &path)
 {
     int fd = open(path.c_str(), O_RDWR, 0);
     if (fd < 0) {
-        perror("at Camera::openDevice, fail to open device, error");
+        perror("at Camera::Device::openDevice, fail to open device, error");
         return -1;
     };
     /* input */
@@ -119,7 +92,7 @@ int Camera::openDevice(const std::string &path)
     return fd;
 }
 
-bool Camera::checkCapability()
+bool Camera::Device::checkCapability()
 {
     /* check video decive driver capability */
     struct v4l2_capability 	cap;
@@ -146,14 +119,12 @@ bool Camera::checkCapability()
     return true;
 }
 
-bool Camera::setFormat(int w, int h, const std::string &format)
+bool Camera::Device::setFormat(int w, int h, const std::string &format)
 {
     if (format.empty()) {
         perror("farmat is empty");
         return false;
     }
-    width = w;
-    height = h;
     /* set format */
     struct v4l2_format fmt;
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -169,21 +140,12 @@ bool Camera::setFormat(int w, int h, const std::string &format)
         perror("VIDIOC_S_FMT set err");
         return false;
     }
-    formatString = format;
     /* allocate memory for image */
-    unsigned long len = width * height * 4;
-    if (formatString == CAMERA_PIXELFORMAT_JPEG) {
-        len = Jpeg::align4(width, 3)*height;
-    } else if (formatString == CAMERA_PIXELFORMAT_YUYV) {
-        len = width * height * 4;
-    }
-    for (int i = 0; i < 8; i++) {
-        outputFrame[i].allocate(len);
-    }
+    decoder->setFormat(w, h, format);
     return true;
 }
 
-bool Camera::attachSharedMemory()
+bool Camera::Device::attachSharedMemory()
 {
     struct v4l2_requestbuffers reqbufs;
     memset(&reqbufs, 0, sizeof(reqbufs));
@@ -238,7 +200,7 @@ bool Camera::attachSharedMemory()
     return true;
 }
 
-void Camera::dettachSharedMemory()
+void Camera::Device::dettachSharedMemory()
 {
     for (std::size_t i = 0; i < mmapBlockCount; i++) {
         if (munmap(sharedMem[i].data, sharedMem[i].length) == -1) {
@@ -248,7 +210,7 @@ void Camera::dettachSharedMemory()
     return;
 }
 
-bool Camera::startSample()
+bool Camera::Device::startSample()
 {
     if (isRunning.load()) {
         return true;
@@ -261,12 +223,12 @@ bool Camera::startSample()
     }
     /* start thread */
     isRunning.store(1);
-    sampleThread = std::thread(&Camera::onSample, this);
-    processThread = std::thread(&Camera::onProcess, this);
+    sampleThread = std::thread(&Camera::Device::onSample, this);
+    decoder->start();
     return true;
 }
 
-bool Camera::stopSample()
+bool Camera::Device::stopSample()
 {
     if (isRunning.load()) {
         isRunning.store(0);
@@ -276,12 +238,12 @@ bool Camera::stopSample()
             perror("Fail to ioctl 'VIDIOC_STREAMOFF'");
         }
         sampleThread.join();
-        processThread.join();
+        decoder->stop();
     }
     return true;
 }
 
-void Camera::closeDevice()
+void Camera::Device::closeDevice()
 {
     /* dettach shared memory */
     dettachSharedMemory();
@@ -293,7 +255,7 @@ void Camera::closeDevice()
     return;
 }
 
-std::string Camera::shellExecute(const std::string& command)
+std::string Camera::Device::shellExecute(const std::string& command)
 {
     std::string result = "";
     FILE *fpRead = popen(command.c_str(), "r");
@@ -310,7 +272,7 @@ std::string Camera::shellExecute(const std::string& command)
     return result;
 }
 
-unsigned short Camera::getVendorID(const char *name)
+unsigned short Camera::Device::getVendorID(const char *name)
 {
     std::string cmd = Strings::format(1024, "cat /sys/class/video4linux/%s/device/modalias", name);
     /* usb:v2B16p6689d0100dcEFdsc02dp01ic0Eisc01ip00in00 */
@@ -319,7 +281,7 @@ unsigned short Camera::getVendorID(const char *name)
     std::string vid = result.substr(i + 1, 4);
     return Strings::hexStringToInt16(vid);
 }
-unsigned short Camera::getProductID(const char *name)
+unsigned short Camera::Device::getProductID(const char *name)
 {
     std::string cmd = Strings::format(1024, "cat /sys/class/video4linux/%s/device/modalias", name);
     /* usb:v2B16p6689d0100dcEFdsc02dp01ic0Eisc01ip00in00 */
@@ -329,7 +291,7 @@ unsigned short Camera::getProductID(const char *name)
     return Strings::hexStringToInt16(pid);
 }
 
-std::vector<Camera::Property> Camera::enumerate()
+std::vector<Camera::Property> Camera::Device::enumerate()
 {
     std::vector<Camera::Property> devPathList;
     DIR *dir;
@@ -346,8 +308,8 @@ std::vector<Camera::Property> Camera::enumerate()
             continue;
         }
         Camera::Property property;
-        property.vendorID = Camera::getVendorID((char*)ptr->d_name);
-        property.productID = Camera::getProductID((char*)ptr->d_name);
+        property.vendorID = Camera::Device::getVendorID((char*)ptr->d_name);
+        property.productID = Camera::Device::getProductID((char*)ptr->d_name);
 
         std::string devPath = Strings::format(32, "/dev/%s", (char*)ptr->d_name);
         int index = devPath.find('\0');
@@ -367,9 +329,9 @@ std::vector<Camera::Property> Camera::enumerate()
     return devPathList;
 }
 
-std::vector<Camera::PixelFormat> Camera::getPixelFormatList(const std::string &path)
+std::vector<Camera::PixelFormat> Camera::Device::getPixelFormatList(const std::string &path)
 {
-    std::vector<PixelFormat> formatList;
+    std::vector<Camera::PixelFormat> formatList;
     int fd = open(path.c_str(), O_RDWR | O_NONBLOCK, 0);
     if (fd < 0) {
         printf("fail to open device. fd = %d\n", fd);
@@ -420,11 +382,11 @@ std::vector<Camera::PixelFormat> Camera::getPixelFormatList(const std::string &p
     return formatList;
 }
 
-std::vector<std::string> Camera::getResolutionList(const std::string &path, const std::string &pixelFormat)
+std::vector<std::string> Camera::Device::getResolutionList(const std::string &path, const std::string &pixelFormat)
 {
     std::vector<std::string> resList;
     /* get pixel format list */
-    std::vector<PixelFormat> pixelFormatList = Camera::getPixelFormatList(path);
+    std::vector<Camera::PixelFormat> pixelFormatList = Camera::Device::getPixelFormatList(path);
     if (pixelFormatList.empty()) {
         return resList;
     }
@@ -471,7 +433,7 @@ std::vector<std::string> Camera::getResolutionList(const std::string &path, cons
     return resList;
 }
 
-int Camera::openPath(const std::string &path, const std::string &format, const std::string &res)
+int Camera::Device::openPath(const std::string &path, const std::string &format, const std::string &res)
 {
     fd = openDevice(path);
     if (fd < 0) {
@@ -482,7 +444,7 @@ int Camera::openPath(const std::string &path, const std::string &format, const s
     std::vector<std::string> resList = Strings::split(res, "*");
     int w = std::atoi(resList[0].c_str());
     int h = std::atoi(resList[1].c_str());
-    if (Camera::setFormat(w, h, format) == false) {
+    if (Camera::Device::setFormat(w, h, format) == false) {
         printf("failed to setFormat.\n");
         return -4;
     }
@@ -499,24 +461,24 @@ int Camera::openPath(const std::string &path, const std::string &format, const s
     return 0;
 }
 
-int Camera::start(const std::string &path, const std::string &format, const std::string &res)
+int Camera::Device::start(const std::string &path, const std::string &format, const std::string &res)
 {
     if (format.empty()) {
-        printf("Camera::start: empty format\n");
+        printf("Camera::Device::start: empty format\n");
         return -7;
     }
     if (res.empty()) {
-        printf("Camera::start: empty resolution\n");
+        printf("Camera::Device::start: empty resolution\n");
         return -7;
     }
     devPath = path;
     return openPath(devPath, format, res);
 }
 
-int Camera::start(unsigned short vid, unsigned short pid, const std::string &pixelFormat, int resIndex)
+int Camera::Device::start(unsigned short vid, unsigned short pid, const std::string &pixelFormat, int resIndex)
 {
     /* enumerate */
-    std::vector<Camera::Property> devList = Camera::enumerate();
+    std::vector<Camera::Property> devList = Camera::Device::enumerate();
     if (devList.empty()) {
         return -1;
     }
@@ -532,12 +494,12 @@ int Camera::start(unsigned short vid, unsigned short pid, const std::string &pix
     }
     std::cout<<"dev path:"<<dev.path<<std::endl;
     /* get pixel format list */
-    std::vector<PixelFormat> pixelFormatList = Camera::getPixelFormatList(dev.path);
+    std::vector<Camera::PixelFormat> pixelFormatList = Camera::Device::getPixelFormatList(dev.path);
     if (pixelFormatList.empty()) {
         return -3;
     }
     /* get resolution */
-    std::vector<std::string> resList = Camera::getResolutionList(dev.path, pixelFormat);
+    std::vector<std::string> resList = Camera::Device::getResolutionList(dev.path, pixelFormat);
     if (resList.empty()) {
         return -4;
     }
@@ -549,7 +511,7 @@ int Camera::start(unsigned short vid, unsigned short pid, const std::string &pix
     return openPath(dev.path, pixelFormat, resList[resIndex]);
 }
 
-void Camera::stop()
+void Camera::Device::stop()
 {
     stopSample();
     /* clear */
@@ -559,21 +521,21 @@ void Camera::stop()
     return;
 }
 
-void Camera::clear()
+void Camera::Device::clear()
 {
     formatList.clear();
     resolutionMap.clear();
     return;
 }
 
-void Camera::restart(const std::string &format, const std::string &res)
+void Camera::Device::restart(const std::string &format, const std::string &res)
 {
     stop();
     start(devPath, format, res);
     return;
 }
 
-void Camera::setParam(unsigned int controlID, int value)
+void Camera::Device::setParam(unsigned int controlID, int value)
 {
     v4l2_queryctrl queryctrl;
     queryctrl.id = controlID;
@@ -601,7 +563,7 @@ void Camera::setParam(unsigned int controlID, int value)
     return;
 }
 
-int Camera::getParamRange(unsigned int controlID, int modeID, Param &param)
+int Camera::Device::getParamRange(unsigned int controlID, int modeID, Param &param)
 {
     v4l2_queryctrl queryctrl;
     queryctrl.id = controlID;
@@ -638,7 +600,7 @@ int Camera::getParamRange(unsigned int controlID, int modeID, Param &param)
     return 0;
 }
 
-int Camera::getParam(unsigned int controlID)
+int Camera::Device::getParam(unsigned int controlID)
 {
     v4l2_control ctrl{controlID, 0};
     if (ioctl(fd, VIDIOC_G_CTRL, &ctrl) == -1) {
@@ -647,168 +609,168 @@ int Camera::getParam(unsigned int controlID)
     return ctrl.value;
 }
 
-void Camera::setWhiteBalanceMode(int value)
+void Camera::Device::setWhiteBalanceMode(int value)
 {
     setParam(V4L2_CID_AUTO_WHITE_BALANCE, value);
 }
 
-int Camera::getWhiteBalanceMode()
+int Camera::Device::getWhiteBalanceMode()
 {
     return getParam(V4L2_CID_AUTO_WHITE_BALANCE);
 }
 
-void Camera::setWhiteBalanceTemperature(int value)
+void Camera::Device::setWhiteBalanceTemperature(int value)
 {
     setParam(V4L2_CID_WHITE_BALANCE_TEMPERATURE, value);
     return;
 }
 
-int Camera::getWhiteBalanceTemperature()
+int Camera::Device::getWhiteBalanceTemperature()
 {
     return getParam(V4L2_CID_WHITE_BALANCE_TEMPERATURE);
 }
 
-void Camera::setBrightnessMode(int value)
+void Camera::Device::setBrightnessMode(int value)
 {
     setParam(V4L2_CID_AUTOBRIGHTNESS, value);
 }
 
-int Camera::getBrightnessMode()
+int Camera::Device::getBrightnessMode()
 {
     return getParam(V4L2_CID_AUTOBRIGHTNESS);
 }
 
-void Camera::setBrightness(int value)
+void Camera::Device::setBrightness(int value)
 {
     setParam(V4L2_CID_BRIGHTNESS, value);
 }
 
-int Camera::getBrightness()
+int Camera::Device::getBrightness()
 {
     return getParam(V4L2_CID_BRIGHTNESS);
 }
 
-void Camera::setContrast(int value)
+void Camera::Device::setContrast(int value)
 {
     setParam(V4L2_CID_CONTRAST, value);
 }
 
-int Camera::getContrast()
+int Camera::Device::getContrast()
 {
     return getParam(V4L2_CID_CONTRAST);
 }
 
-void Camera::setSaturation(int value)
+void Camera::Device::setSaturation(int value)
 {
     setParam(V4L2_CID_SATURATION, value);
 }
 
-int Camera::getSaturation()
+int Camera::Device::getSaturation()
 {
     return getParam(V4L2_CID_SATURATION);
 }
 
-void Camera::setHue(int value)
+void Camera::Device::setHue(int value)
 {
     setParam(V4L2_CID_HUE, value);
 }
 
-int Camera::getHue()
+int Camera::Device::getHue()
 {
     return getParam(V4L2_CID_HUE);
 }
 
-void Camera::setSharpness(int value)
+void Camera::Device::setSharpness(int value)
 {
     setParam(V4L2_CID_SHARPNESS, value);
 }
 
-int Camera::getSharpness()
+int Camera::Device::getSharpness()
 {
     return getParam(V4L2_CID_SHARPNESS);
 }
 
-void Camera::setBacklightCompensation(int value)
+void Camera::Device::setBacklightCompensation(int value)
 {
     setParam(V4L2_CID_BACKLIGHT_COMPENSATION, value);
 }
 
-int Camera::getBacklightCompensation()
+int Camera::Device::getBacklightCompensation()
 {
     return getParam(V4L2_CID_BACKLIGHT_COMPENSATION);
 }
 
-void Camera::setGamma(int value)
+void Camera::Device::setGamma(int value)
 {
     setParam(V4L2_CID_GAMMA, value);
 }
 
-int Camera::getGamma()
+int Camera::Device::getGamma()
 {
     return getParam(V4L2_CID_GAMMA);
 }
 
-void Camera::setExposureMode(int value)
+void Camera::Device::setExposureMode(int value)
 {
     setParam(V4L2_CID_EXPOSURE_AUTO, value);
 }
 
-int Camera::getExposureMode()
+int Camera::Device::getExposureMode()
 {
     return getParam(V4L2_CID_EXPOSURE_AUTO);
 }
 
-void Camera::setExposure(int value)
+void Camera::Device::setExposure(int value)
 {
     setParam(V4L2_CID_EXPOSURE, value);
 }
 
-int Camera::getExposure()
+int Camera::Device::getExposure()
 {
     return getParam(V4L2_CID_EXPOSURE);
 }
 
-void Camera::setExposureAbsolute(int value)
+void Camera::Device::setExposureAbsolute(int value)
 {
     setParam(V4L2_CID_EXPOSURE_ABSOLUTE, value);
 }
 
-int Camera::getExposureAbsolute()
+int Camera::Device::getExposureAbsolute()
 {
     return getParam(V4L2_CID_EXPOSURE_ABSOLUTE);
 }
 
-void Camera::setAutoGain(int value)
+void Camera::Device::setAutoGain(int value)
 {
     setParam(V4L2_CID_AUTOGAIN, value);
 }
 
-int Camera::getAutoGain()
+int Camera::Device::getAutoGain()
 {
     return getParam(V4L2_CID_AUTOGAIN);
 }
 
-void Camera::setGain(int value)
+void Camera::Device::setGain(int value)
 {
     setParam(V4L2_CID_GAIN, value);
 }
 
-int Camera::getGain()
+int Camera::Device::getGain()
 {
     return getParam(V4L2_CID_GAIN);
 }
 
-void Camera::setPowerLineFrequence(int value)
+void Camera::Device::setPowerLineFrequence(int value)
 {
     setParam(V4L2_CID_POWER_LINE_FREQUENCY, value);
 }
 
-int Camera::getFrequency()
+int Camera::Device::getFrequency()
 {
     return getParam(V4L2_CID_POWER_LINE_FREQUENCY);
 }
 
-void Camera::setDefaultParam()
+void Camera::Device::setDefaultParam()
 {
     setWhiteBalanceMode(0);
     setWhiteBalanceTemperature(4600);
@@ -828,7 +790,7 @@ void Camera::setDefaultParam()
     return;
 }
 
-void Camera::setParam(const Camera::DeviceParam &param)
+void Camera::Device::setParam(const Camera::DeviceParam &param)
 {
     setWhiteBalanceMode(param.whiteBalanceMode);
     setWhiteBalanceTemperature(param.whiteBalanceTemperature);

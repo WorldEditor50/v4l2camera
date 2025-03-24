@@ -11,7 +11,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
     setWindowFlag(Qt::WindowMinMaxButtonsHint);
     /* device */
-    std::vector<Camera::Property> devices = Camera::enumerate();
+    std::vector<Camera::Property> devices = Camera::Device::enumerate();
     if (devices.empty()) {
         QMessageBox::warning(this, "Notice", "no device");
         return;
@@ -25,7 +25,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->deviceComboBox, &QComboBox::currentTextChanged,
         this, &MainWindow::onDeviceChanged);
     /* pixel format */
-    std::vector<Camera::PixelFormat> pixelFormatList = Camera::getPixelFormatList(devices[0].path);
+    std::vector<Camera::PixelFormat> pixelFormatList = Camera::Device::getPixelFormatList(devices[0].path);
     for (std::size_t i = 0; i < pixelFormatList.size(); i++) {
         ui->formatComboBox->addItem(QString::fromStdString(pixelFormatList[i].formatString));
     }
@@ -33,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->formatComboBox, &QComboBox::currentTextChanged,
             this, &MainWindow::onPixelFormatChanged);
     /* resolution */
-    std::vector<std::string> res = Camera::getResolutionList(devices[0].path, CAMERA_PIXELFORMAT_JPEG);
+    std::vector<std::string> res = Camera::Device::getResolutionList(devices[0].path, CAMERA_PIXELFORMAT_JPEG);
     for (std::size_t i = 0; i < res.size(); i++) {
         ui->resolutionComboBox->addItem(QString::fromStdString(res[i]));
     }
@@ -51,8 +51,7 @@ MainWindow::MainWindow(QWidget *parent) :
     methodName = "none";
     ui->methodComboBox->setCurrentText(methodName);
 
-    camera = new Camera;
-    camera->registerProcess([this](int h, int w, int c, unsigned char* data){
+    camera = new Camera::Device(Camera::Decode_SYNC, [this](int h, int w, int c, unsigned char* data){
         if (c == 3) {
             if (methodName == "canny") {
                 Imageprocess::canny(h, w, data);
@@ -99,7 +98,7 @@ void MainWindow::enumerateDevice()
     disconnect(ui->deviceComboBox, &QComboBox::currentTextChanged,
         this, &MainWindow::onDeviceChanged);
 
-    std::vector<Camera::Property> devices = Camera::enumerate();
+    std::vector<Camera::Property> devices = Camera::Device::enumerate();
     if (devices.empty()) {
         QMessageBox::warning(this, "Notice", "no device");
         return;
@@ -124,7 +123,7 @@ void MainWindow::onDeviceChanged(const QString &path)
                this, &MainWindow::onPixelFormatChanged);
 
     ui->formatComboBox->clear();
-    std::vector<Camera::PixelFormat> pixelFormatList = Camera::getPixelFormatList(path.toStdString());
+    std::vector<Camera::PixelFormat> pixelFormatList = Camera::Device::getPixelFormatList(path.toStdString());
     for (std::size_t i = 0; i < pixelFormatList.size(); i++) {
         ui->formatComboBox->addItem(QString::fromStdString(pixelFormatList[i].formatString));
     }
@@ -135,7 +134,7 @@ void MainWindow::onDeviceChanged(const QString &path)
     disconnect(ui->resolutionComboBox, &QComboBox::currentTextChanged,
                this, &MainWindow::onResolutionChanged);
 
-    std::vector<std::string> res = Camera::getResolutionList(path.toStdString(),
+    std::vector<std::string> res = Camera::Device::getResolutionList(path.toStdString(),
                                                              CAMERA_PIXELFORMAT_JPEG);
     for (std::size_t i = 0; i < res.size(); i++) {
         ui->resolutionComboBox->addItem(QString::fromStdString(res[i]));
